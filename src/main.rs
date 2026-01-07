@@ -3,7 +3,7 @@
 mod git;
 mod ollama;
 
-use std::fmt::Write;
+use std::{fmt::Write, io::Write as IoWrite};
 
 use crate::{
     git::MyGitStore,
@@ -28,12 +28,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Connecting to Ollama service at {uri}");
     println!("Ollama version {}", client.version().await?);
     println!("Module name {model}");
-    println!("========== Patch Reviewing     =========");
+    println!("========== Patch Content =========");
     println!("{patch_content}");
-    println!("========== Patch Reviewing     =========");
-
+    print!("========== Reviewing =============");
+    std::io::stdout().flush().ok();
     let reply = ask_ai(&client, model, prompt).await?.response;
-    println!("========== Patch Review Result =========\n");
+    print!("\r");
+    println!("========== Review Result =========\n");
     println!("{}", reply);
     Ok(())
 }
@@ -43,16 +44,18 @@ fn generate_patch_review_request(
 ) -> Result<String, Box<dyn std::error::Error>> {
     let patch_content = gs.get_cur_patch_content()?;
     let mut ret = format!(
-        "Please review this patch with improvement suggestions only (do not \
-         include overview, example, highlights):\n \"\"\"\n {patch_content}\n \
-         \"\"\"\n You may take these full contents of changed files as review \
-         context:\n"
+        "You are a Linux software engineer reviewing provided patch. Please \
+         only include improvement suggestions without making summery on what \
+         current patch is doing. Please include code snippet for the \
+         improvement when possible. This is the patch content:\n \"\"\"\n \
+         {patch_content}\n \"\"\"\n You may also take these changed files as \
+         review context:\n"
     );
     for changed_file in gs.get_cur_changed_file_paths()? {
         let content = gs.get_file_content(&changed_file)?;
         write!(
             ret,
-            "file: {}\n\"\"\"\n{content}\n\"\"\"\n",
+            "file path: {}\nfile content:\"\"\"\n{content}\n\"\"\"\n",
             changed_file.display()
         )
         .ok();
