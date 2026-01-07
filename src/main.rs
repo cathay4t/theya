@@ -82,5 +82,5 @@ async fn ask_ai(
         }),
     };
 
-    Ok(client.generate(&request).await?)
+    client.generate(&request).await
 }

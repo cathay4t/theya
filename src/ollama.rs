@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use reqwest;
 use serde::{Deserialize, Serialize};
 
 /// Document: https://docs.ollama.com/api/generate

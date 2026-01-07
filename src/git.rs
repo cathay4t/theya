@@ -18,7 +18,7 @@ impl MyGitStore {
     pub(crate) fn get_cur_patch_content(
         &self,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        Ok(self.exec_cmd("git show")?)
+        self.exec_cmd("git show")
     }
 
     pub(crate) fn get_cur_changed_file_paths(
@@ -35,7 +35,7 @@ impl MyGitStore {
         &self,
         path: &Path,
     ) -> Result<String, Box<dyn std::error::Error>> {
-        Ok(self.exec_cmd(&format!("git show HEAD:{}", path.display()))?)
+        self.exec_cmd(&format!("git show HEAD:{}", path.display()))
     }
 
     fn exec_cmd(
