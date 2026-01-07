@@ -18,6 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gs = MyGitStore::new(std::env::current_dir()?);
     let patch_content = gs.get_cur_patch_content()?;
     let prompt = generate_patch_review_request(gs)?;
+    println!("========== Patch Review Result =========\n");
     println!("{}", ask_ai(patch_content, prompt).await?.response);
     Ok(())
 }
@@ -58,12 +59,12 @@ async fn ask_ai(
 
     let client = OllamaClient::new(&uri);
 
-    // Check whether ollama service is running
+    println!("Connecting to Ollama service at {uri}");
     println!("Ollama version {}", client.version().await?);
     println!("Module name {model}");
     println!("========== Patch Reviewing     =========");
     println!("{patch_content}");
-    println!("========== Patch Review Result =========\n");
+    println!("========== Patch Reviewing     =========");
 
     // Generate response
     let request = OllamaGenerate {
