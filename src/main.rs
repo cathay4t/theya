@@ -18,8 +18,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let gs = MyGitStore::new(std::env::current_dir()?);
     let patch_content = gs.get_cur_patch_content()?;
     let prompt = generate_patch_review_request(gs)?;
+    let uri =
+        std::env::var("THEYA_URI").unwrap_or_else(|_| DEFAULT_URI.to_string());
+    let model = std::env::var("THEYA_MODULE")
+        .unwrap_or_else(|_| DEFAULT_MODULE.to_string());
+
+    let client = OllamaClient::new(&uri);
+
+    println!("Connecting to Ollama service at {uri}");
+    println!("Ollama version {}", client.version().await?);
+    println!("Module name {model}");
+    println!("========== Patch Reviewing     =========");
+    println!("{patch_content}");
+    println!("========== Patch Reviewing     =========");
+
+    let reply = ask_ai(&client, model, prompt).await?.response;
     println!("========== Patch Review Result =========\n");
-    println!("{}", ask_ai(patch_content, prompt).await?.response);
+    println!("{}", reply);
     Ok(())
 }
 
@@ -49,23 +64,10 @@ const DEFAULT_MODULE: &str = "qwen3-coder:30b";
 const DEFAULT_URI: &str = "http://localhost:11434";
 
 async fn ask_ai(
-    patch_content: String,
+    client: &OllamaClient,
+    model: String,
     prompt: String,
 ) -> Result<OllamaGenerateResponse, Box<dyn std::error::Error>> {
-    let uri =
-        std::env::var("THEYA_URI").unwrap_or_else(|_| DEFAULT_URI.to_string());
-    let model = std::env::var("THEYA_MODULE")
-        .unwrap_or_else(|_| DEFAULT_MODULE.to_string());
-
-    let client = OllamaClient::new(&uri);
-
-    println!("Connecting to Ollama service at {uri}");
-    println!("Ollama version {}", client.version().await?);
-    println!("Module name {model}");
-    println!("========== Patch Reviewing     =========");
-    println!("{patch_content}");
-    println!("========== Patch Reviewing     =========");
-
     // Generate response
     let request = OllamaGenerate {
         model,
