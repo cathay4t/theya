@@ -14,6 +14,7 @@ impl MyGitStore {
     pub(crate) fn new(dir: PathBuf) -> Self {
         Self { dir }
     }
+
     pub(crate) fn get_cur_patch_content(
         &self,
     ) -> Result<String, Box<dyn std::error::Error>> {

@@ -15,14 +15,16 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let prompt = generate_patch_review_request()?;
-    println!("{}", ask_ai(prompt).await?.response);
+    let gs = MyGitStore::new(std::env::current_dir()?);
+    let patch_content = gs.get_cur_patch_content()?;
+    let prompt = generate_patch_review_request(gs)?;
+    println!("{}", ask_ai(patch_content, prompt).await?.response);
     Ok(())
 }
 
-fn generate_patch_review_request() -> Result<String, Box<dyn std::error::Error>>
-{
-    let gs = MyGitStore::new(std::env::current_dir()?);
+fn generate_patch_review_request(
+    gs: MyGitStore,
+) -> Result<String, Box<dyn std::error::Error>> {
     let patch_content = gs.get_cur_patch_content()?;
     let mut ret = format!(
         "Please review this patch with improvement suggestions only (do not \
@@ -42,17 +44,30 @@ fn generate_patch_review_request() -> Result<String, Box<dyn std::error::Error>>
     Ok(ret)
 }
 
+const DEFAULT_MODULE: &str = "qwen3-coder:30b";
+const DEFAULT_URI: &str = "http://localhost:11434";
+
 async fn ask_ai(
+    patch_content: String,
     prompt: String,
 ) -> Result<OllamaGenerateResponse, Box<dyn std::error::Error>> {
-    let client = OllamaClient::new("http://localhost:11434");
+    let uri =
+        std::env::var("THEYA_URI").unwrap_or_else(|_| DEFAULT_URI.to_string());
+    let model = std::env::var("THEYA_MODULE")
+        .unwrap_or_else(|_| DEFAULT_MODULE.to_string());
+
+    let client = OllamaClient::new(&uri);
 
     // Check whether ollama service is running
     println!("Ollama version {}", client.version().await?);
+    println!("Module name {model}");
+    println!("========== Patch Reviewing     =========");
+    println!("{patch_content}");
+    println!("========== Patch Review Result =========\n");
 
     // Generate response
     let request = OllamaGenerate {
-        model: "qwen3-coder:30b".to_string(),
+        model,
         prompt,
         system: "You are a Linux software engineer reviewing patches."
             .to_string(),
