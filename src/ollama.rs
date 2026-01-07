@@ -10,6 +10,7 @@ pub(crate) struct OllamaGenerate {
     pub(crate) prompt: String,
     pub(crate) system: String,
     pub(crate) stream: bool,
+    pub(crate) context: Vec<u64>,
     pub(crate) keep_alive: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) options: Option<OllamaGenerateOptions>,

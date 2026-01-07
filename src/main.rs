@@ -56,11 +56,13 @@ async fn ask_ai(
         prompt,
         system: "You are a Linux software engineer reviewing patches."
             .to_string(),
+        context: vec![102400],
         keep_alive: "0".into(),
         stream: false,
         options: Some(OllamaGenerateOptions {
             temperature: Some(1.0),
-            num_predict: Some(102400),
+            num_ctx: Some(102400),
+            num_predict: Some(-1),
             ..Default::default()
         }),
     };
