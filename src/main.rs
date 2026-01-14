@@ -45,11 +45,12 @@ fn generate_patch_review_request(
     let patch_content = gs.get_cur_patch_content()?;
     let mut ret = format!(
         "You are a Linux software engineer reviewing provided patch. Please \
-         only include improvement suggestions without making summery on what \
+         only include improvement suggestions without making summary on what \
          current patch is doing. Please include code snippet for the \
-         improvement when possible. This is the patch content:\n \"\"\"\n \
-         {patch_content}\n \"\"\"\n You may also take these changed files as \
-         review context:\n"
+         improvement when possible. Please check typo in function name, \
+         variable name and commit message. This is the patch content:\n \
+         \"\"\"\n {patch_content}\n \"\"\"\n You may also take these changed \
+         files as review context:\n"
     );
     for changed_file in gs.get_cur_changed_file_paths()? {
         let content = gs.get_file_content(&changed_file)?;
