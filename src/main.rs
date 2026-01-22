@@ -1,92 +1,71 @@
 // SPDX-License-Identifier: Apache-2.0
 
+mod error;
 mod git;
 mod ollama;
+mod patch_review;
 
-use std::{fmt::Write, io::Write as IoWrite};
-
-use crate::{
-    git::MyGitStore,
-    ollama::{
-        OllamaClient, OllamaGenerate, OllamaGenerateOptions,
-        OllamaGenerateResponse,
-    },
-};
+use self::{error::CliError, patch_review::CommandPatchReview};
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let gs = MyGitStore::new(std::env::current_dir()?);
-    let patch_content = gs.get_cur_patch_content()?;
-    let prompt = generate_patch_review_request(gs)?;
-    let uri =
-        std::env::var("THEYA_URI").unwrap_or_else(|_| DEFAULT_URI.to_string());
-    let model = std::env::var("THEYA_MODULE")
-        .unwrap_or_else(|_| DEFAULT_MODULE.to_string());
+async fn main() -> Result<(), CliError> {
+    let mut cli_cmd = clap::Command::new("theya")
+        .about("Theya -- Offline Coding Assistant")
+        .arg_required_else_help(true)
+        .arg(
+            clap::Arg::new("quiet")
+                .short('q')
+                .action(clap::ArgAction::SetTrue)
+                .help("Disable logging")
+                .global(true),
+        )
+        .arg(
+            clap::Arg::new("verbose")
+                .short('v')
+                .action(clap::ArgAction::Count)
+                .help("Increase verbose level")
+                .global(true),
+        )
+        .subcommand_required(true)
+        .subcommand(CommandPatchReview::new_cmd());
 
-    let client = OllamaClient::new(&uri);
+    let matches = cli_cmd.get_matches_mut();
 
-    println!("Connecting to Ollama service at {uri}");
-    println!("Ollama version {}", client.version().await?);
-    println!("Module name {model}");
-    println!("========== Patch Content =========");
-    println!("{patch_content}");
-    print!("========== Reviewing =============");
-    std::io::stdout().flush().ok();
-    let reply = ask_ai(&client, model, prompt).await?.response;
-    print!("\r");
-    println!("========== Review Result =========\n");
-    println!("{}", reply);
+    let (log_groups, log_level) = match matches.get_count("verbose") {
+        0 => (vec!["theya", "reqwest"], log::LevelFilter::Warn),
+        1 => (vec!["theya", "reqwest"], log::LevelFilter::Info),
+        2 => (vec!["theya", "reqwest"], log::LevelFilter::Debug),
+        3 => (vec!["theya", "reqwest"], log::LevelFilter::Trace),
+        _ => (vec![""], log::LevelFilter::Trace),
+    };
+
+    if !matches.get_flag("quiet") {
+        let mut log_builder = env_logger::Builder::new();
+        if log_groups.is_empty() {
+            log_builder.filter(None, log_level);
+        } else {
+            for log_group in log_groups {
+                log_builder.filter(Some(log_group), log_level);
+            }
+        }
+        log_builder.init();
+    }
+
+    log::info!("theya version: {}", clap::crate_version!());
+
+    if let Err(e) = handle_subcommand(&matches).await {
+        eprintln!("{e}");
+        std::process::exit(1);
+    }
+
     Ok(())
 }
 
-fn generate_patch_review_request(
-    gs: MyGitStore,
-) -> Result<String, Box<dyn std::error::Error>> {
-    let patch_content = gs.get_cur_patch_content()?;
-    let mut ret = format!(
-        "You are a Linux software engineer reviewing provided patch. Please \
-         only include improvement suggestions without making summary on what \
-         current patch is doing. Please include code snippet for the \
-         improvement when possible. Please check typo in function name, \
-         variable name and commit message. This is the patch content:\n \
-         \"\"\"\n {patch_content}\n \"\"\"\n You may also take these changed \
-         files as review context:\n"
-    );
-    for changed_file in gs.get_cur_changed_file_paths()? {
-        let content = gs.get_file_content(&changed_file)?;
-        write!(
-            ret,
-            "file path: {}\nfile content:\"\"\"\n{content}\n\"\"\"\n",
-            changed_file.display()
-        )
-        .ok();
+async fn handle_subcommand(matches: &clap::ArgMatches) -> Result<(), CliError> {
+    if let Some(matches) = matches.subcommand_matches(CommandPatchReview::CMD) {
+        CommandPatchReview::handle(matches).await?;
+        Ok(())
+    } else {
+        Err(CliError::from("Unknown command"))
     }
-    Ok(ret)
-}
-
-const DEFAULT_MODULE: &str = "qwen3-coder:30b";
-const DEFAULT_URI: &str = "http://localhost:11434";
-
-async fn ask_ai(
-    client: &OllamaClient,
-    model: String,
-    prompt: String,
-) -> Result<OllamaGenerateResponse, Box<dyn std::error::Error>> {
-    // Generate response
-    let request = OllamaGenerate {
-        model,
-        prompt,
-        system: "You are a Linux software engineer reviewing patches."
-            .to_string(),
-        keep_alive: "0".into(),
-        stream: false,
-        options: Some(OllamaGenerateOptions {
-            temperature: Some(1.0),
-            num_ctx: Some(102400),
-            num_predict: Some(-1),
-            ..Default::default()
-        }),
-    };
-
-    client.generate(&request).await
 }

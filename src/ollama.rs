@@ -2,6 +2,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::error::CliError;
+
 /// Document: https://docs.ollama.com/api/generate
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct OllamaGenerate {
@@ -74,21 +76,43 @@ impl OllamaClient {
         }
     }
 
-    pub(crate) async fn generate(
+    async fn generate(
         &self,
         request: &OllamaGenerate,
-    ) -> Result<OllamaGenerateResponse, Box<dyn std::error::Error>> {
+    ) -> Result<OllamaGenerateResponse, CliError> {
         let url = format!("{}/api/generate", self.base_url);
         let response = self.client.post(&url).json(request).send().await?;
         let json: OllamaGenerateResponse = response.json().await?;
         Ok(json)
     }
 
-    pub(crate) async fn version(
-        &self,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    pub(crate) async fn version(&self) -> Result<String, CliError> {
         let url = format!("{}/api/version", self.base_url);
         let response = self.client.get(&url).send().await?;
         Ok(response.text().await?)
+    }
+
+    pub(crate) async fn generate_ai_response(
+        &self,
+        model: String,
+        prompt: String,
+        num_ctx: i32,
+        num_predict: i32,
+    ) -> Result<OllamaGenerateResponse, CliError> {
+        let request = OllamaGenerate {
+            model,
+            prompt,
+            system: "You are a Linux software development engineer."
+                .to_string(),
+            keep_alive: "0".into(),
+            stream: false,
+            options: Some(OllamaGenerateOptions {
+                temperature: Some(1.0),
+                num_ctx: Some(num_ctx),
+                num_predict: Some(num_predict),
+                ..Default::default()
+            }),
+        };
+        self.generate(&request).await
     }
 }
