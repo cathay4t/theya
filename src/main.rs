@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
+mod chat;
+mod cmd;
 mod error;
 mod git;
 mod ollama;
 mod patch_review;
 
-use self::{error::CliError, patch_review::CommandPatchReview};
+use self::{
+    chat::CommandQuickChat, error::CliError, patch_review::CommandPatchReview,
+};
 
 #[tokio::main]
 async fn main() -> Result<(), CliError> {
@@ -27,7 +31,8 @@ async fn main() -> Result<(), CliError> {
                 .global(true),
         )
         .subcommand_required(true)
-        .subcommand(CommandPatchReview::new_cmd());
+        .subcommand(CommandPatchReview::new_cmd())
+        .subcommand(CommandQuickChat::new_cmd());
 
     let matches = cli_cmd.get_matches_mut();
 
@@ -64,6 +69,11 @@ async fn main() -> Result<(), CliError> {
 async fn handle_subcommand(matches: &clap::ArgMatches) -> Result<(), CliError> {
     if let Some(matches) = matches.subcommand_matches(CommandPatchReview::CMD) {
         CommandPatchReview::handle(matches).await?;
+        Ok(())
+    } else if let Some(matches) =
+        matches.subcommand_matches(CommandQuickChat::CMD)
+    {
+        CommandQuickChat::handle(matches).await?;
         Ok(())
     } else {
         Err(CliError::from("Unknown command"))

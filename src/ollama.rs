@@ -35,8 +35,8 @@ pub(crate) struct OllamaGenerateOptions {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) stop: Option<Vec<String>>,
     /// Maximum number of tokens to generate
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) num_predict: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none", rename = "num_predict")]
+    pub(crate) output_token_limit: Option<i32>,
     /// Context length size (number of tokens)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) num_ctx: Option<i32>,
@@ -56,60 +56,69 @@ pub(crate) struct OllamaGenerateResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) eval_count: Option<u64>,
     /// Time spent generating the response in nanoseconds
-    #[serde(
-        skip_serializing_if = "Option::is_none",
-        rename = "total_duration"
-    )]
-    pub(crate) total_duration_ns: Option<u64>,
+    #[serde(rename = "total_duration")]
+    pub(crate) total_duration_ns: u64,
 }
 
 pub(crate) struct OllamaClient {
-    client: reqwest::Client,
-    base_url: String,
+    pub(crate) client: reqwest::Client,
+    pub(crate) uri: String,
+    pub(crate) model: String,
 }
 
+const DEFAULT_MODULE: &str = "qwen3-coder:30b";
+const DEFAULT_URI: &str = "http://localhost:11434";
+
 impl OllamaClient {
-    pub(crate) fn new(base_url: &str) -> Self {
-        Self {
+    pub(crate) async fn new() -> Result<Self, CliError> {
+        let uri = std::env::var("THEYA_URI")
+            .unwrap_or_else(|_| DEFAULT_URI.to_string());
+        let model = std::env::var("THEYA_MODULE")
+            .unwrap_or_else(|_| DEFAULT_MODULE.to_string());
+
+        log::info!("Ollama URI: {uri}");
+        log::info!("Module name {model}");
+        let ret = Self {
             client: reqwest::Client::new(),
-            base_url: base_url.to_string(),
-        }
+            uri: uri.to_string(),
+            model: model.to_string(),
+        };
+        log::info!("Ollama version {}", ret.version().await?);
+        Ok(ret)
     }
 
     async fn generate(
         &self,
         request: &OllamaGenerate,
     ) -> Result<OllamaGenerateResponse, CliError> {
-        let url = format!("{}/api/generate", self.base_url);
+        let url = format!("{}/api/generate", self.uri);
         let response = self.client.post(&url).json(request).send().await?;
         let json: OllamaGenerateResponse = response.json().await?;
         Ok(json)
     }
 
     pub(crate) async fn version(&self) -> Result<String, CliError> {
-        let url = format!("{}/api/version", self.base_url);
+        let url = format!("{}/api/version", self.uri);
         let response = self.client.get(&url).send().await?;
         Ok(response.text().await?)
     }
 
     pub(crate) async fn generate_ai_response(
         &self,
-        model: String,
+        system: String,
         prompt: String,
         num_ctx: i32,
-        num_predict: i32,
     ) -> Result<OllamaGenerateResponse, CliError> {
         let request = OllamaGenerate {
-            model,
+            model: self.model.to_string(),
             prompt,
-            system: "You are a Linux software development engineer."
-                .to_string(),
+            system,
             keep_alive: "0".into(),
             stream: false,
             options: Some(OllamaGenerateOptions {
                 temperature: Some(1.0),
                 num_ctx: Some(num_ctx),
-                num_predict: Some(num_predict),
+                output_token_limit: Some(-1),
                 ..Default::default()
             }),
         };
