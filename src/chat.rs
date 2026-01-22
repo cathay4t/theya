@@ -51,7 +51,8 @@ impl CommandQuickChat {
     pub(crate) async fn handle(
         matches: &clap::ArgMatches,
     ) -> Result<(), CliError> {
-        let (context_num, system_prompt) = if matches.get_flag("SLOW") {
+        let is_slow = matches.get_flag("SLOW");
+        let (context_num, system_prompt) = if is_slow {
             (SLOW_CHAT_CONTEXT, SLOW_SYSTEM_PROMPT)
         } else {
             (QUICK_CHAT_CONTEXT, QUICK_SYSTEM_PROMPT)
@@ -85,7 +86,7 @@ impl CommandQuickChat {
 
         spawn_editor(&editor, &tmp_file_path)?;
 
-        let question = std::fs::read_to_string(&tmp_file_path)?
+        let mut question = std::fs::read_to_string(&tmp_file_path)?
             .lines()
             .filter(|line| !line.starts_with(COMMENT_PREFIX))
             .collect::<Vec<&str>>()
@@ -96,6 +97,10 @@ impl CommandQuickChat {
         if question.is_empty() {
             println!("Got empty question, quitting");
             return Ok(());
+        }
+
+        if !is_slow {
+            question.push_str(" (make the answer short)");
         }
 
         log::debug!("Question is:```\n{question}\n```");
