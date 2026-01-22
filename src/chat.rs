@@ -122,7 +122,7 @@ impl CommandQuickChat {
             ```\n\
             # Time spent: {:.02} seconds.\n\n\
             # Answer\n\n\
-            {}",
+            {}\n",
             elapsed.as_secs_f64(),
             reply.response
         ).lines().map(|line| line.trim_end()).collect::<Vec<&str>>().join("\n");
