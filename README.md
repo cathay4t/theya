@@ -22,7 +22,7 @@ To use different model and/or remote ollama server:
 
 ```bash
 env THEYA_URI="http://remote-server.example.com:11434" \
-    THEYA_MODULE="qwen3-coder:480b" \
+    THEYA_MODEL="qwen3-coder:480b" \
     theya
 ```
 

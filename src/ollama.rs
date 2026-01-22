@@ -66,15 +66,15 @@ pub(crate) struct OllamaClient {
     pub(crate) model: String,
 }
 
-const DEFAULT_MODULE: &str = "qwen3-coder:30b";
+const DEFAULT_MODEL: &str = "qwen3-coder:30b";
 const DEFAULT_URI: &str = "http://localhost:11434";
 
 impl OllamaClient {
     pub(crate) async fn new() -> Result<Self, CliError> {
         let uri = std::env::var("THEYA_URI")
             .unwrap_or_else(|_| DEFAULT_URI.to_string());
-        let model = std::env::var("THEYA_MODULE")
-            .unwrap_or_else(|_| DEFAULT_MODULE.to_string());
+        let model = std::env::var("THEYA_MODEL")
+            .unwrap_or_else(|_| DEFAULT_MODEL.to_string());
 
         log::info!("Ollama URI: {uri}");
         log::info!("Module name {model}");
