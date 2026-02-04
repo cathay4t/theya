@@ -6,7 +6,7 @@ use super::{error::CliError, git::MyGitStore, ollama::OllamaClient};
 
 pub(crate) struct CommandPatchReview;
 
-const CONTEXT_NUMBER: i32 = 128 * 1024;
+const CONTEXT_NUMBER: i32 = 10 * 1024 * 1024;
 
 #[rustfmt::skip]
 const SYSTEM_PROMPT: &str = "\
