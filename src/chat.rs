@@ -13,7 +13,7 @@ const COMMENT_PREFIX: &str = "<!-- Theya: ";
 const COMMENT_POSTFIX: &str = " -->";
 
 const QUICK_CHAT_CONTEXT: i32 = 1024;
-const SLOW_CHAT_CONTEXT: i32 = 128 * 1024;
+const SLOW_CHAT_CONTEXT: i32 = 10 * 1024 * 1024;
 
 #[rustfmt::skip]
 const QUICK_SYSTEM_PROMPT: &str = "\
