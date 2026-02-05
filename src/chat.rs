@@ -119,7 +119,7 @@ impl CommandQuickChat {
         let elapsed = std::time::Duration::from_nanos(reply.total_duration_ns);
 
         #[rustfmt::skip]
-        let output = format!(
+        let mut output = format!(
             "# Question\n\
             ```\n\
             {question}\n\
@@ -130,6 +130,8 @@ impl CommandQuickChat {
             elapsed.as_secs_f64(),
             reply.response
         ).lines().map(|line| line.trim_end()).collect::<Vec<&str>>().join("\n");
+
+        output.push('\n');
 
         let mut fd = std::fs::File::create(&tmp_file_path)?;
         fd.write_all(output.as_bytes())?;
