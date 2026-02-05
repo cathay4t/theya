@@ -95,8 +95,7 @@ impl CommandQuickChat {
             .to_string();
 
         if question.is_empty() {
-            println!("Got empty question, quitting");
-            return Ok(());
+            return Err("Got empty question, quitting".into());
         }
 
         if !is_slow {
