@@ -66,6 +66,11 @@ pub(crate) struct OllamaClient {
     pub(crate) model: String,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct OllamaVersionResponse {
+    version: String,
+}
+
 const DEFAULT_MODEL: &str = "qwen3-coder:30b";
 const DEFAULT_URI: &str = "http://localhost:11434";
 
@@ -100,7 +105,8 @@ impl OllamaClient {
     pub(crate) async fn version(&self) -> Result<String, CliError> {
         let url = format!("{}/api/version", self.uri);
         let response = self.client.get(&url).send().await?;
-        Ok(response.text().await?)
+        let version: OllamaVersionResponse = response.json().await?;
+        return Ok(version.version);
     }
 
     pub(crate) async fn generate_ai_response(

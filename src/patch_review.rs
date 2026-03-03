@@ -38,6 +38,12 @@ impl CommandPatchReview {
 
         log::debug!("========== Patch Content =========");
         log::debug!("{patch_content}");
+        println!("========== Ollama URI: {} =============", client.uri,);
+        println!(
+            "========== Ollama Version: {} =============",
+            client.version().await?,
+        );
+        println!("========== Ollama Model: {} =============", client.model,);
         println!(
             "========== Reviewing: {} =============",
             gs.get_cur_patch_titile()?.trim()
