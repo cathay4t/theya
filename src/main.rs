@@ -2,17 +2,21 @@
 
 mod chat;
 mod cmd;
+mod code;
+mod config;
 mod error;
 mod git;
+mod json_schema;
 mod ollama;
 mod patch_review;
 
 use self::{
-    chat::CommandQuickChat, error::CliError, patch_review::CommandPatchReview,
+    chat::CommandChat, code::CommandCode, config::TheyaConfig,
+    error::TheyaError, patch_review::CommandPatchReview,
 };
 
 #[tokio::main]
-async fn main() -> Result<(), CliError> {
+async fn main() -> Result<(), TheyaError> {
     let mut cli_cmd = clap::Command::new("theya")
         .about("Theya -- Offline Coding Assistant")
         .arg_required_else_help(true)
@@ -32,17 +36,20 @@ async fn main() -> Result<(), CliError> {
         )
         .subcommand_required(true)
         .subcommand(CommandPatchReview::new_cmd())
-        .subcommand(CommandQuickChat::new_cmd());
+        .subcommand(CommandChat::new_cmd())
+        .subcommand(CommandCode::new_cmd());
 
     let matches = cli_cmd.get_matches_mut();
 
     let (log_groups, log_level) = match matches.get_count("verbose") {
-        0 => (vec!["theya", "reqwest"], log::LevelFilter::Warn),
-        1 => (vec!["theya", "reqwest"], log::LevelFilter::Info),
-        2 => (vec!["theya", "reqwest"], log::LevelFilter::Debug),
-        3 => (vec!["theya", "reqwest"], log::LevelFilter::Trace),
+        0 => (vec!["theya", "reqwest"], log::LevelFilter::Info),
+        1 => (vec!["theya", "reqwest"], log::LevelFilter::Debug),
+        2 => (vec!["theya", "reqwest"], log::LevelFilter::Trace),
         _ => (vec![""], log::LevelFilter::Trace),
     };
+
+    let config = TheyaConfig::load()?;
+    log::debug!("Loaded config {config:?}");
 
     if !matches.get_flag("quiet") {
         let mut log_builder = env_logger::Builder::new();
@@ -58,7 +65,7 @@ async fn main() -> Result<(), CliError> {
 
     log::info!("theya version: {}", clap::crate_version!());
 
-    if let Err(e) = handle_subcommand(&matches).await {
+    if let Err(e) = handle_subcommand(&matches, &config).await {
         eprintln!("{e}");
         std::process::exit(1);
     }
@@ -66,16 +73,23 @@ async fn main() -> Result<(), CliError> {
     Ok(())
 }
 
-async fn handle_subcommand(matches: &clap::ArgMatches) -> Result<(), CliError> {
-    if let Some(matches) = matches.subcommand_matches(CommandPatchReview::CMD) {
-        CommandPatchReview::handle(matches).await?;
-        Ok(())
-    } else if let Some(matches) =
-        matches.subcommand_matches(CommandQuickChat::CMD)
+async fn handle_subcommand(
+    matches: &clap::ArgMatches,
+    config: &TheyaConfig,
+) -> Result<(), TheyaError> {
+    if matches
+        .subcommand_matches(CommandPatchReview::CMD)
+        .is_some()
     {
-        CommandQuickChat::handle(matches).await?;
+        CommandPatchReview::handle(&config.patch_review).await?;
+        Ok(())
+    } else if let Some(matches) = matches.subcommand_matches(CommandChat::CMD) {
+        CommandChat::handle(matches, config).await?;
+        Ok(())
+    } else if matches.subcommand_matches(CommandCode::CMD).is_some() {
+        CommandCode::handle(&config.code, &config.projects).await?;
         Ok(())
     } else {
-        Err(CliError::from("Unknown command"))
+        Err(TheyaError::from("Unknown command"))
     }
 }

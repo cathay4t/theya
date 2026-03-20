@@ -52,3 +52,22 @@ theya chat --slow
 # Type your question in the editor, save and quit.
 # The lengthy complex answer will shows ollama replys
 ```
+
+## Usage: Code
+
+Create `$HOME/.config/theya/config` with content:
+
+```toml
+[code]
+modle = "qwen3-coder:30b-a3b-q8_0"
+
+[projects.nipart]
+# Git remote link for a this repo
+git = "https://github.com/cathay4t/nipart.git"
+# which command is used for building
+compile = "cargo build"
+# which command is used for unit testing
+unit_test = "cargo test"
+# which command is used for integretation test
+integ_test = "sudo tests/run-tests.sh"
+```

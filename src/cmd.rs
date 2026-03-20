@@ -2,12 +2,12 @@
 
 use std::process::Command;
 
-use super::error::CliError;
+use super::error::TheyaError;
 
 pub(crate) fn run_command(
     cmds: &str,
     cwd: &std::path::Path,
-) -> Result<String, CliError> {
+) -> Result<String, TheyaError> {
     let mut cmd_splitted: Vec<&str> = cmds.split(" ").collect();
 
     let stdout = Command::new(cmd_splitted.remove(0))
@@ -22,7 +22,7 @@ pub(crate) fn run_command(
 pub(crate) fn spawn_editor(
     editor: &str,
     file_path: &std::path::Path,
-) -> Result<(), CliError> {
+) -> Result<(), TheyaError> {
     let mut child = Command::new(editor)
         .arg(file_path)
         .stdin(std::process::Stdio::inherit())
@@ -32,11 +32,11 @@ pub(crate) fn spawn_editor(
     if !child
         .wait()
         .map_err(|e| {
-            CliError::from(format!("Editor '{editor}' failed with {e}"))
+            TheyaError::from(format!("Editor '{editor}' failed with {e}"))
         })?
         .success()
     {
-        return Err(CliError::from(format!("Editor '{editor}' failed")));
+        return Err(TheyaError::from(format!("Editor '{editor}' failed")));
     }
     Ok(())
 }

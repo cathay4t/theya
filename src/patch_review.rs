@@ -2,7 +2,10 @@
 
 use std::{fmt::Write, io::Write as IoWrite};
 
-use super::{error::CliError, git::MyGitStore, ollama::OllamaClient};
+use super::{
+    config::TheyaPatchReviewConfig, error::TheyaError, git::GitStore,
+    ollama::OllamaClient,
+};
 
 pub(crate) struct CommandPatchReview;
 
@@ -28,13 +31,18 @@ impl CommandPatchReview {
     }
 
     pub(crate) async fn handle(
-        _matches: &clap::ArgMatches,
-    ) -> Result<(), CliError> {
-        let gs = MyGitStore::new(std::env::current_dir()?);
+        config: &TheyaPatchReviewConfig,
+    ) -> Result<(), TheyaError> {
+        let gs = GitStore::new(std::env::current_dir()?);
         let patch_content = gs.get_cur_patch_content()?;
         let prompt = generate_patch_review_request(&gs)?;
 
-        let client = OllamaClient::new().await?;
+        let uri = config.uri.as_str();
+        let model = config.model.as_str();
+
+        let client =
+            OllamaClient::new(uri, model, SYSTEM_PROMPT, CONTEXT_NUMBER)
+                .await?;
 
         log::debug!("========== Patch Content =========");
         log::debug!("{patch_content}");
@@ -53,14 +61,7 @@ impl CommandPatchReview {
         log::trace!("System prompt:\n{SYSTEM_PROMPT}");
         log::trace!("Prompt:\n{prompt}");
 
-        let reply = client
-            .generate_ai_response(
-                SYSTEM_PROMPT.to_string(),
-                prompt,
-                CONTEXT_NUMBER,
-            )
-            .await?
-            .response;
+        let reply = client.generate_ai_response(prompt).await?.response;
 
         println!("========== Review Result =========");
         println!("{}", reply);
@@ -68,7 +69,7 @@ impl CommandPatchReview {
     }
 }
 
-fn generate_patch_review_request(gs: &MyGitStore) -> Result<String, CliError> {
+fn generate_patch_review_request(gs: &GitStore) -> Result<String, TheyaError> {
     let patch_content = gs.get_cur_patch_content()?;
     // TODO: Support reading guideline from git repo
     #[rustfmt::skip]
