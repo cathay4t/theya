@@ -4,7 +4,8 @@ use std::io::Write;
 
 use super::{
     cmd::{run_command, spawn_editor},
-    error::CliError,
+    config::TheyaConfig,
+    error::{ErrorKind, TheyaError},
     ollama::OllamaClient,
 };
 
@@ -28,9 +29,9 @@ You are a experienced Linux Software developer providing coding assistance.\n\
 Guidelines:
 1. Only include single recommendation.\n";
 
-pub(crate) struct CommandQuickChat;
+pub(crate) struct CommandChat;
 
-impl CommandQuickChat {
+impl CommandChat {
     pub(crate) const CMD: &str = "chat";
 
     pub(crate) fn new_cmd() -> clap::Command {
@@ -50,22 +51,35 @@ impl CommandQuickChat {
 
     pub(crate) async fn handle(
         matches: &clap::ArgMatches,
-    ) -> Result<(), CliError> {
+        config: &TheyaConfig,
+    ) -> Result<(), TheyaError> {
         let is_slow = matches.get_flag("SLOW");
         let (context_num, system_prompt) = if is_slow {
             (SLOW_CHAT_CONTEXT, SLOW_SYSTEM_PROMPT)
         } else {
             (QUICK_CHAT_CONTEXT, QUICK_SYSTEM_PROMPT)
         };
+        let (uri, model) = if is_slow {
+            (
+                config.slow_chat.uri.as_str(),
+                config.slow_chat.model.as_str(),
+            )
+        } else {
+            (
+                config.quick_chat.uri.as_str(),
+                config.quick_chat.model.as_str(),
+            )
+        };
 
-        let client = OllamaClient::new().await?;
+        let client =
+            OllamaClient::new(uri, model, system_prompt, context_num).await?;
 
         let editor = std::env::var("EDITOR")
             .unwrap_or_else(|_| DEFAULT_EDITOR.to_string());
 
         let tmp_file_path = std::path::PathBuf::from(format!(
             "{}.md",
-            run_command("mktemp -u", &std::env::temp_dir())?.trim()
+            run_command("mktemp", &["-u"])?.1.trim()
         ));
 
         let mut fd = std::fs::File::create(&tmp_file_path)?;
@@ -95,7 +109,10 @@ impl CommandQuickChat {
             .to_string();
 
         if question.is_empty() {
-            return Err("Got empty question, quitting".into());
+            return Err(TheyaError::new(
+                ErrorKind::AiInvalidReply,
+                "Got empty question, quitting".into(),
+            ));
         }
 
         if !is_slow {
@@ -107,13 +124,7 @@ impl CommandQuickChat {
         log::trace!("System prompt:\n{system_prompt}");
         log::trace!("Prompt:\n{question}");
 
-        let reply = client
-            .generate_ai_response(
-                system_prompt.to_string(),
-                question.clone(),
-                context_num,
-            )
-            .await?;
+        let reply = client.generate_ai_response(question.clone()).await?;
         log::trace!("Reply is:\n{reply:?}");
 
         let elapsed = std::time::Duration::from_nanos(reply.total_duration_ns);

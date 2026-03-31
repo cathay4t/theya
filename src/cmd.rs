@@ -1,42 +1,74 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::process::Command;
+use std::process::{Command, ExitStatus, Stdio};
 
-use super::error::CliError;
+use super::error::{ErrorKind, TheyaError};
 
 pub(crate) fn run_command(
-    cmds: &str,
-    cwd: &std::path::Path,
-) -> Result<String, CliError> {
-    let mut cmd_splitted: Vec<&str> = cmds.split(" ").collect();
+    cmd: &str,
+    args: &[&str],
+) -> Result<(ExitStatus, String, String), TheyaError> {
+    log::info!("Invoking command: {} {}", cmd, args.join(" "));
+    let output = Command::new(cmd)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .args(args)
+        .output()?;
 
-    let stdout = Command::new(cmd_splitted.remove(0))
-        .args(cmd_splitted)
-        .current_dir(cwd)
-        .output()?
-        .stdout;
+    let stdout = String::from_utf8(output.stdout).unwrap_or_default();
+    log::trace!("Command stdout: {stdout}");
+    let stderr = String::from_utf8(output.stderr).unwrap_or_default();
+    log::trace!("Command stderr: {stderr}");
+    if output.status.success() {
+        log::info!("Command succeeded");
+    } else {
+        log::info!(
+            "Command failed with {}, {stderr}",
+            output.status.code().unwrap_or_default()
+        );
+    }
+    Ok((output.status, stdout, stderr))
+}
 
-    Ok(String::from_utf8(stdout)?)
+pub(crate) fn run_command_checked(
+    cmd: &str,
+    args: &[&str],
+) -> Result<String, TheyaError> {
+    let (status, stdout, stderr) = run_command(cmd, args)?;
+
+    if status.success() {
+        Ok(stdout)
+    } else {
+        Err(TheyaError::new(
+            ErrorKind::Bug,
+            format!(
+                "Command `{cmd} {}` failed with rc {} and message: {}",
+                args.join(" "),
+                status.code().unwrap_or_default(),
+                stderr
+            ),
+        ))
+    }
 }
 
 pub(crate) fn spawn_editor(
     editor: &str,
     file_path: &std::path::Path,
-) -> Result<(), CliError> {
+) -> Result<(), TheyaError> {
     let mut child = Command::new(editor)
         .arg(file_path)
-        .stdin(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit())
-        .stdout(std::process::Stdio::inherit())
+        .stdin(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .stdout(Stdio::inherit())
         .spawn()?;
     if !child
         .wait()
         .map_err(|e| {
-            CliError::from(format!("Editor '{editor}' failed with {e}"))
+            TheyaError::from(format!("Editor '{editor}' failed with {e}"))
         })?
         .success()
     {
-        return Err(CliError::from(format!("Editor '{editor}' failed")));
+        return Err(TheyaError::from(format!("Editor '{editor}' failed")));
     }
     Ok(())
 }
