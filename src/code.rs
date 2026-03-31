@@ -108,17 +108,13 @@ impl CommandCode {
             ```\n\
             {coding_task}\n\
             ```\n\n\
-            Suggested coding workflow is:\n\
-             1. Find out which file by listing all files.\n\
-             2. Find out historical git commit of interested file.\n\
-             3. Modify files to fulfill specified coding task.\n\
-             4. Compile the code and modify code if any got compile failure.\n\
-             5. Run unit test and modify unit test code if got failure.\n\
-             6. Run lint check and fix all lints.\n\
-             6. Create git commit with summery of what changed.\n\n\
-            In the seek of performance, historical message will not contains \
-            read or write file content, hence make a summery on what you read \
-            or about to write after got tool reply."
+            Recommendations:\n\
+             1. A good patch should pass compiling, unit test and link check.\n\
+             2. Only create git commit after you consider current changes \
+                is a good patch for specified coding task.\n\
+             3. In the seek of performance, historical message for file content
+                is purged after processed, hence make a summery on what you
+                have read or about to write."
         );
         let init_chat_msg = OllamaChatMessage {
             role: OllamaChatMessageRole::User,
