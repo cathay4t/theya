@@ -18,7 +18,6 @@ use super::{
 pub(crate) trait ToolHandlerCmd {
     const NAME: &str;
     const DESCRIPTION: &str;
-    const DEFAULT_CMD: &str;
 
     fn parameters() -> JsonSchema {
         JsonSchema::default()
@@ -50,13 +49,19 @@ pub(crate) trait ToolHandlerCmd {
         cmd: Option<&str>,
         arguments: serde_json::Value,
     ) -> Result<String, TheyaError> {
-        let cmd = cmd.unwrap_or(Self::DEFAULT_CMD);
-        match Self::run(cmd, arguments) {
-            Ok(t) => Ok(serde_json::to_string(&t)?),
-            Err(e) => {
-                log::warn!("Tool invoking failed with {e}");
-                Ok(serde_json::to_string(&format!("FAIL: {e}"))?)
+        if let Some(cmd) = cmd {
+            match Self::run(cmd, arguments) {
+                Ok(t) => Ok(serde_json::to_string(&t)?),
+                Err(e) => {
+                    log::warn!("Tool invoking failed with {e}");
+                    Ok(serde_json::to_string(&format!("FAIL: {e}"))?)
+                }
             }
+        } else {
+            Ok(serde_json::to_string(&format!(
+                "tool for {} undefined by user, silent pass",
+                Self::NAME,
+            ))?)
         }
     }
 }
@@ -273,7 +278,6 @@ impl ToolHandlerCmd for ToolCompile {
     const NAME: &str = "compile";
     const DESCRIPTION: &str =
         "Compile the project return PASS or FAIL with error message";
-    const DEFAULT_CMD: &str = "cargo build";
 }
 
 pub(crate) struct ToolUnitTest;
@@ -282,7 +286,6 @@ impl ToolHandlerCmd for ToolUnitTest {
     const NAME: &str = "unit_test";
     const DESCRIPTION: &str = "Run unit test after compile passed, return \
                                PASS or FAIL with error message";
-    const DEFAULT_CMD: &str = "cargo test";
 
     fn parameters() -> JsonSchema {
         let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
@@ -335,7 +338,6 @@ impl ToolHandlerCmd for ToolFormat {
     const DESCRIPTION: &str = "Format the code after compile pass and unit \
                                test pass, return PASS if succeeded or FAIL \
                                along with error message";
-    const DEFAULT_CMD: &str = "cargo fmt --all";
 }
 
 pub(crate) struct ToolLintCheck;
@@ -344,7 +346,6 @@ impl ToolHandlerCmd for ToolLintCheck {
     const DESCRIPTION: &str = "Run lint check after compile passed, return \
                                PASS if no error, otherwise return FAIL along \
                                with error message";
-    const DEFAULT_CMD: &str = "cargo clippy --all-targets";
 }
 
 pub(crate) struct ToolGitLog;
