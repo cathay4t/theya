@@ -287,10 +287,9 @@ impl OllamaClient {
 
         messages.push(OllamaChatMessage {
             role: OllamaChatMessageRole::User,
-            content: "
-                In order to increase performance, please make a summery the \
-                      provides messages, this summery will be used to replace \
-                      historical message for follow up actions"
+            content: "In order to increase performance, please make a summery \
+                      the provides messages, this summery will be used to \
+                      replace historical message for follow up actions"
                 .to_string(),
             ..Default::default()
         });
@@ -328,6 +327,7 @@ impl OllamaClient {
             Err(TheyaError::new(ErrorKind::Bug, err_msg.to_string()))
         } else {
             if let Some(message) = reply.message.take() {
+                log::info!("AI: {}", message.content);
                 self.chat_history.clear();
                 self.chat_history.push(message);
                 Ok(())
