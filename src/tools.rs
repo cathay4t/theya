@@ -197,6 +197,68 @@ impl ToolHandler<String> for ToolReadFile {
     }
 }
 
+pub(crate) struct ToolGrep;
+
+impl ToolHandler<String> for ToolGrep {
+    const NAME: &str = "grep";
+    const DESCRIPTION: &str =
+        "grep content of the specified file or folder using ripgrep tool";
+
+    fn parameters() -> JsonSchema {
+        let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
+            HashMap::new();
+        json_schema_props.insert(
+            "path".into(),
+            Box::new(JsonSchema {
+                kind: Some("string".into()),
+                description: Some("path".into()),
+                ..Default::default()
+            }),
+        );
+        json_schema_props.insert(
+            "pattern".into(),
+            Box::new(JsonSchema {
+                kind: Some("string".into()),
+                description: Some("Pattern to grep".into()),
+                ..Default::default()
+            }),
+        );
+        JsonSchema {
+            kind: Some("object".into()),
+            properties: Some(json_schema_props),
+            required: Some(vec!["path".to_string(), "pattern".to_string()]),
+            ..Default::default()
+        }
+    }
+
+    fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
+        if let Some(para) = arguments.as_object()
+            && let Some(path) = para.get("path").and_then(|v| v.as_str())
+            && let Some(pattern) = para.get("pattern").and_then(|v| v.as_str())
+        {
+            if !is_within_current_dir(path)? {
+                return Err(TheyaError::new(
+                    ErrorKind::AiInvalidReply,
+                    format!(
+                        "Cannot grep path {path} outside of current working \
+                         directory"
+                    ),
+                ));
+            }
+            log::info!("rg {path} {pattern}");
+            Ok(run_command_checked("rg", &[pattern, path])?)
+        } else {
+            Err(TheyaError::new(
+                ErrorKind::Bug,
+                format!(
+                    "ToolReadFile(): Invalid argument {arguments:?}, \
+                     expecting object with `file_path`"
+                ),
+            ))
+        }
+    }
+}
+
 pub(crate) struct ToolWriteFile;
 
 impl ToolHandler<String> for ToolWriteFile {
@@ -497,6 +559,7 @@ pub(crate) fn gen_tool_prototypes_for_coding() -> Vec<OllamaToolPrototype> {
         ToolGitShowCommit::prototype(),
         ToolLintCheck::prototype(),
         ToolReadFile::prototype(),
+        ToolGrep::prototype(),
         ToolUnitTest::prototype(),
         ToolWriteFile::prototype(),
     ]
@@ -510,6 +573,7 @@ pub(crate) fn gen_tool_prototypes_for_review() -> Vec<OllamaToolPrototype> {
         ToolWriteFile::prototype(),
         ToolCompile::prototype(),
         ToolUnitTest::prototype(),
+        ToolGrep::prototype(),
         ToolFormat::prototype(),
     ]
 }
@@ -554,6 +618,7 @@ pub(crate) fn handle_tool(
         ToolGitShowCommit::NAME => ToolGitShowCommit::handle(arguments)?,
         ToolGitCreateCommit::NAME => ToolGitCreateCommit::handle(arguments)?,
         ToolGitDiff::NAME => ToolGitDiff::handle(arguments)?,
+        ToolGrep::NAME => ToolGrep::handle(arguments)?,
         tool_name => {
             log::warn!("Reject AI requested invalid tool: {tool_name}");
             serde_json::to_string(&format!(
