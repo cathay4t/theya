@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     error::{ErrorKind, TheyaError},
     json_schema::JsonSchema,
+    tools::{ToolHandler, ToolWriteFile},
 };
 
 // Default time out to 5 hours
@@ -344,7 +345,11 @@ impl OllamaClient {
         self.chat_history.clear()
     }
 
-    pub(crate) fn add_chat_message(&mut self, message: OllamaChatMessage) {
+    // Will replace write file content with "<omitted>"
+    pub(crate) fn add_chat_message(&mut self, mut message: OllamaChatMessage) {
+        if message.tool_name.as_deref() == Some(ToolWriteFile::NAME) {
+            message.content = "<omitted>".to_string();
+        }
         self.chat_history.push(message)
     }
 
