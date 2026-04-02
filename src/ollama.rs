@@ -376,6 +376,24 @@ impl OllamaClient {
         let message_json_str = serde_json::to_string(&messages)?;
         if message_json_str.len() > MAX_MSG_SIZE {
             self.compress_chat_message().await?;
+            messages = vec![
+                OllamaChatMessage {
+                    role: OllamaChatMessageRole::System,
+                    content: self.guideline.to_string(),
+                    ..Default::default()
+                },
+                self.chat_user_message.clone(),
+            ];
+            for msg in self.chat_history.iter() {
+                messages.push(msg.clone());
+            }
+            messages.push(OllamaChatMessage {
+                role: OllamaChatMessageRole::User,
+                content: "Please continue for next step if coding task is not \
+                          finished"
+                    .to_string(),
+                ..Default::default()
+            });
         }
 
         let request = OllamaChat {
@@ -410,7 +428,11 @@ impl OllamaClient {
         if let Some(err_msg) = reply.error.as_ref() {
             Err(TheyaError::new(ErrorKind::Bug, err_msg.to_string()))
         } else {
+            let elapsed =
+                std::time::Duration::from_nanos(reply.total_duration_ns);
+            log::info!("Elapsed: {:.02} seconds", elapsed.as_secs_f64());
             if let Some(message) = reply.message.as_ref() {
+                log::info!("AI: {}", message.content);
                 self.chat_history.push(message.clone());
             }
 

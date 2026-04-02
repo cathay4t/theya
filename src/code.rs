@@ -124,14 +124,10 @@ impl CommandCode {
             log::info!("Iteration {}/{MAX_ITERATION}", i + 1);
             log::info!("Sending out chat message to AI");
             let reply = client.chat().await?;
-            let elapsed =
-                std::time::Duration::from_nanos(reply.total_duration_ns);
-            log::info!("Elapsed: {:.02} seconds", elapsed.as_secs_f64());
 
             let Some(message) = reply.message else {
                 continue;
             };
-            log::info!("AI: {}", message.content);
 
             if let Some(tool_calls) = message.tool_calls
                 && !tool_calls.is_empty()
