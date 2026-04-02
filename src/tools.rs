@@ -245,8 +245,8 @@ impl ToolHandler<String> for ToolGrep {
                     ),
                 ));
             }
-            log::info!("rg {path} {pattern}");
-            Ok(run_command_checked("rg", &[pattern, path])?)
+            log::info!("Invoking rg -e {pattern} {path} ");
+            Ok(run_command_checked("rg", &["-e", pattern, path])?)
         } else {
             Err(TheyaError::new(
                 ErrorKind::Bug,
