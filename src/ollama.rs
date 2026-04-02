@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::VecDeque, time::Duration};
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 
 use super::{
     error::{ErrorKind, TheyaError},
     json_schema::JsonSchema,
-    tools::{ToolReadFile, ToolWriteFile},
 };
-use crate::tools::ToolHandler;
 
 // Default time out to 5 hours
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5 * 60 * 60);
 // When to clean up memory after OllamaClient quit.
 const KEEPALIVE: &str = "5m";
+
+// Limit the message size to 64KiB for performance concern
+const MAX_MSG_SIZE: usize = 64 * 1024;
 
 /// Document: https://docs.ollama.com/api/generate
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -176,10 +177,8 @@ pub(crate) struct OllamaClient {
     pub(crate) model: String,
     pub(crate) guideline: String,
     pub(crate) num_ctx: i32,
-    // 0 means save all without limitation
-    pub(crate) max_chat_history: usize,
     pub(crate) chat_user_message: OllamaChatMessage,
-    pub(crate) chat_history: VecDeque<OllamaChatMessage>,
+    pub(crate) chat_history: Vec<OllamaChatMessage>,
     pub(crate) tools: Vec<OllamaToolPrototype>,
 }
 
@@ -219,10 +218,6 @@ impl OllamaClient {
         };
         log::info!("Ollama version {}", ret.version().await?);
         Ok(ret)
-    }
-
-    pub(crate) fn reset_chat_history(&mut self) {
-        self.chat_history.clear();
     }
 
     async fn generate(
@@ -276,26 +271,81 @@ impl OllamaClient {
         self.chat_user_message = message;
     }
 
-    pub(crate) fn set_max_chat_history(&mut self, v: usize) {
-        self.max_chat_history = v;
-    }
+    // Compress the historical message by request AI to summarize the history.
+    async fn compress_chat_message(&mut self) -> Result<(), TheyaError> {
+        let mut messages = vec![
+            OllamaChatMessage {
+                role: OllamaChatMessageRole::System,
+                content: self.guideline.to_string(),
+                ..Default::default()
+            },
+            self.chat_user_message.clone(),
+        ];
+        for msg in self.chat_history.iter() {
+            messages.push(msg.clone());
+        }
 
-    // Set all file read and write content to `<omitted>`
-    pub(crate) fn compress_chat_message(&mut self) {
-        for msg in self.chat_history.iter_mut() {
-            let Some(tool_name) = msg.tool_name.as_ref() else {
-                continue;
-            };
-            if tool_name == ToolReadFile::NAME
-                || tool_name == ToolWriteFile::NAME
-            {
-                msg.content = "<omitted>".to_string();
+        messages.push(OllamaChatMessage {
+            role: OllamaChatMessageRole::User,
+            content: "
+                In order to increase performance, please make a summery the \
+                      provides messages, this summery will be used to replace \
+                      historical message for follow up actions"
+                .to_string(),
+            ..Default::default()
+        });
+
+        let request = OllamaChat {
+            model: self.model.to_string(),
+            messages,
+            format: None,
+            keep_alive: KEEPALIVE.into(),
+            tools: self.tools.clone(),
+            options: Some(OllamaOptions {
+                temperature: Some(1.0),
+                num_ctx: Some(self.num_ctx),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        log::info!("Request AI to make summery on historical messages");
+        log::debug!(
+            "Sending request {}",
+            serde_json::to_string_pretty(&request)?
+        );
+        let url = format!("{}/api/chat", self.uri);
+        let response = self
+            .client
+            .post(&url)
+            .timeout(DEFAULT_TIMEOUT)
+            .json(&request)
+            .send()
+            .await?;
+        let mut reply: OllamaChatResponse = response.json().await?;
+        log::debug!("Got reply {}", serde_json::to_string_pretty(&reply)?);
+        if let Some(err_msg) = reply.error.as_ref() {
+            Err(TheyaError::new(ErrorKind::Bug, err_msg.to_string()))
+        } else {
+            if let Some(message) = reply.message.take() {
+                self.chat_history.clear();
+                self.chat_history.push(message);
+                Ok(())
+            } else {
+                Err(TheyaError::new(
+                    ErrorKind::Bug,
+                    format!("Got AI reply without message: {reply:?}"),
+                ))
             }
         }
     }
 
+    pub(crate) fn reset_chat_history(&mut self) {
+        self.chat_history.clear()
+    }
+
     pub(crate) fn add_chat_message(&mut self, message: OllamaChatMessage) {
-        self.chat_history.push_back(message)
+        self.chat_history.push(message)
     }
 
     pub(crate) fn set_tools(&mut self, tools: Vec<OllamaToolPrototype>) {
@@ -315,6 +365,12 @@ impl OllamaClient {
         ];
         for msg in self.chat_history.iter() {
             messages.push(msg.clone());
+        }
+
+        // Request compressing on historical message if exceeded
+        let message_json_str = serde_json::to_string(&messages)?;
+        if message_json_str.len() > MAX_MSG_SIZE {
+            self.compress_chat_message().await?;
         }
 
         let request = OllamaChat {
@@ -350,12 +406,7 @@ impl OllamaClient {
             Err(TheyaError::new(ErrorKind::Bug, err_msg.to_string()))
         } else {
             if let Some(message) = reply.message.as_ref() {
-                if self.max_chat_history > 0
-                    && self.chat_history.len() > self.max_chat_history
-                {
-                    self.chat_history.pop_front();
-                }
-                self.chat_history.push_back(message.clone());
+                self.chat_history.push(message.clone());
             }
 
             Ok(reply)

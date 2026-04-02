@@ -15,7 +15,6 @@ const DEFAULT_EDITOR: &str = "vim";
 const COMMENT_PREFIX: &str = "<!-- Theya: ";
 const COMMENT_POSTFIX: &str = " -->";
 const MAX_ITERATION: usize = 100;
-const MAX_CHAT_HISTORY: usize = 10;
 
 pub(crate) fn default_code_guideline() -> String {
     "You are a Linux Software developer who is working in a git repo and \
@@ -52,7 +51,6 @@ impl CommandCode {
             config.context_count,
         )
         .await?;
-        client.set_max_chat_history(MAX_CHAT_HISTORY);
 
         log::trace!("System prompt:\n{}", config.guideline.as_str());
 
@@ -111,10 +109,7 @@ impl CommandCode {
             Recommendations:\n\
              1. A good patch should pass compiling, unit test and link check.\n\
              2. Only create git commit after you consider current changes \
-                is a good patch for specified coding task.\n\
-             3. In the seek of performance, historical message for file content
-                is purged after processed, hence make a summery on what you
-                have read or about to write."
+                is a good patch for specified coding task."
         );
         let init_chat_msg = OllamaChatMessage {
             role: OllamaChatMessageRole::User,
@@ -144,10 +139,6 @@ impl CommandCode {
                 for tool_call in tool_calls {
                     match handle_tool(tool_call, &project_config) {
                         Ok(msg) => {
-                            // TODO: If historical message exceeded the
-                            // maximum context length, ask AI to summarize
-                            // and use summery to replace historical messages.
-                            client.compress_chat_message();
                             client.add_chat_message(msg);
                             log::info!("Appended tool output to queue");
                         }
