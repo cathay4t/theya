@@ -229,8 +229,8 @@ pub(crate) struct ToolWriteFile;
 
 impl ToolHandler<String> for ToolWriteFile {
     const NAME: &str = "write_files";
-    const DESCRIPTION: &str = "Write content to specified file, optionally , \
-                               return PASS or FAIL along with error";
+    const DESCRIPTION: &str =
+        "Write content to specified file, return PASS or FAIL along with error";
 
     fn parameters() -> JsonSchema {
         let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
@@ -248,36 +248,6 @@ impl ToolHandler<String> for ToolWriteFile {
             Box::new(JsonSchema {
                 kind: Some("string".into()),
                 description: Some("file content".into()),
-                ..Default::default()
-            }),
-        );
-        json_schema_props.insert(
-            "line_start".into(),
-            Box::new(JsonSchema {
-                kind: Some("integer".into()),
-                description: Some(
-                    "optional argument, replace lines between(inclusive) \
-                     line_start and line_end with specified file_content. The \
-                     first line is line 1. To append file_content before \
-                     original content, set line_start to 0. To add \
-                     file_content after original content, set line_start to \
-                     -1. Undefined means 1(first line)."
-                        .into(),
-                ),
-                ..Default::default()
-            }),
-        );
-        json_schema_props.insert(
-            "line_end".into(),
-            Box::new(JsonSchema {
-                kind: Some("integer".into()),
-                description: Some(
-                    "optional argument, replace lines between(inclusive) \
-                     line_start and line_end with specified file_content. The \
-                     first line is line 1. Undefined means replace till last \
-                     line"
-                        .into(),
-                ),
                 ..Default::default()
             }),
         );
@@ -309,19 +279,7 @@ impl ToolHandler<String> for ToolWriteFile {
                 ));
             }
             log::info!("Modifying {file_path}");
-            let modified = read_and_replace_file_range(
-                file_path,
-                file_content,
-                arguments
-                    .as_object()
-                    .and_then(|o| o.get("line_start"))
-                    .and_then(|v| v.as_i64()),
-                arguments
-                    .as_object()
-                    .and_then(|o| o.get("line_end"))
-                    .and_then(|v| v.as_i64()),
-            )?;
-            if let Err(e) = std::fs::write(file_path, &modified) {
+            if let Err(e) = std::fs::write(file_path, &file_content) {
                 Ok(format!("FAIL: {e}"))
             } else {
                 Ok("PASS".into())
@@ -381,91 +339,6 @@ fn read_file_range(
     }
 }
 
-fn read_and_replace_file_range(
-    file_path: &str,
-    file_content: &str,
-    line_start: Option<i64>,
-    line_end: Option<i64>,
-) -> Result<String, TheyaError> {
-    let original = std::fs::read_to_string(file_path)?;
-    let total_line_count = original.lines().count() as i64;
-
-    let line_start = line_start.unwrap_or(1);
-    let line_end = line_end.unwrap_or(total_line_count);
-
-    if line_end < line_start {
-        return Err(TheyaError::new(
-            ErrorKind::AiInvalidReply,
-            "ToolWriteFile(): Invalid argument: line_end should bigger or \
-             equal than line_start"
-                .to_string(),
-        ));
-    }
-
-    match line_start {
-        i if i < -1 => Err(TheyaError::new(
-            ErrorKind::AiInvalidReply,
-            "ToolWriteFile(): Invalid argument: line_start should bigger than \
-             -1"
-            .to_string(),
-        )),
-        i if (i == -1) || (i > total_line_count) => {
-            log::info!("Append content after original file");
-            let mut modified = original;
-            if !modified.ends_with("\n") {
-                modified.push('\n');
-            }
-            modified.push_str(file_content);
-            if !modified.ends_with("\n") {
-                modified.push('\n');
-            }
-            Ok(modified)
-        }
-        0 => {
-            log::info!("Appending content at the beginning");
-            let mut modified = file_content.to_string();
-            if !modified.ends_with("\n") {
-                modified.push('\n');
-            }
-            modified.push_str(original.as_str());
-            if !modified.ends_with("\n") {
-                modified.push('\n');
-            }
-            Ok(modified)
-        }
-        i if (1..=total_line_count).contains(&i) => {
-            if i == 1 && line_end == total_line_count {
-                log::info!("Override full content of origin file");
-                let mut ret = file_content.to_string();
-                if !ret.ends_with("\n") {
-                    ret.push('\n');
-                }
-                Ok(ret)
-            } else {
-                log::info!("Replacing range {}:{} of origin file", i, line_end);
-                let mut modified: String = original
-                    .lines()
-                    .take(i as usize - 1)
-                    .collect::<Vec<&str>>()
-                    .join("\n");
-                if !modified.is_empty() {
-                    modified.push('\n');
-                }
-                modified.push_str(file_content);
-                if !modified.ends_with("\n") {
-                    modified.push('\n');
-                }
-                for line in original.lines().skip(line_end as usize) {
-                    modified.push_str(line);
-                    modified.push('\n');
-                }
-                Ok(modified)
-            }
-        }
-        _ => unreachable!(),
-    }
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
@@ -521,69 +394,6 @@ mod test {
         assert_eq!(
             read_file_range(test_file_path, Some(2), Some(9)).unwrap(),
             "2\n3\n4\n5\n".to_string()
-        );
-
-        remove_test_file(test_file_path);
-    }
-
-    #[test]
-    fn write_range() {
-        let test_file_path: &str = "/tmp/theya_test_write.file";
-        create_test_file(test_file_path);
-        assert_eq!(
-            read_and_replace_file_range(test_file_path, "abc", None, None)
-                .unwrap(),
-            "abc\n".to_string()
-        );
-        assert_eq!(
-            read_and_replace_file_range(test_file_path, "abc", Some(0), None)
-                .unwrap(),
-            "abc\n1\n2\n3\n4\n5\n".to_string()
-        );
-        assert_eq!(
-            read_and_replace_file_range(test_file_path, "abc", Some(-1), None)
-                .unwrap(),
-            "1\n2\n3\n4\n5\nabc\n".to_string()
-        );
-        assert_eq!(
-            read_and_replace_file_range(
-                test_file_path,
-                "a\nb\nc",
-                Some(1),
-                Some(2),
-            )
-            .unwrap(),
-            "a\nb\nc\n3\n4\n5\n".to_string()
-        );
-        assert_eq!(
-            read_and_replace_file_range(
-                test_file_path,
-                "a\nb\nc",
-                Some(2),
-                Some(5),
-            )
-            .unwrap(),
-            "1\na\nb\nc\n".to_string()
-        );
-        assert_eq!(
-            read_and_replace_file_range(
-                test_file_path,
-                "a\nb\nc",
-                Some(2),
-                Some(1000),
-            )
-            .unwrap(),
-            "1\na\nb\nc\n".to_string()
-        );
-        assert_eq!(
-            read_and_replace_file_range(
-                test_file_path,
-                "a\nb\nc",
-                Some(2),
-                None,
-            )
-            .unwrap(),
-            "1\na\nb\nc\n".to_string()
         );
 
         remove_test_file(test_file_path);
