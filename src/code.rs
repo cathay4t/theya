@@ -13,7 +13,7 @@ use super::{
 const DEFAULT_EDITOR: &str = "vim";
 const COMMENT_PREFIX: &str = "<!-- Theya: ";
 const COMMENT_POSTFIX: &str = " -->";
-const MAX_ITERATION: usize = 100;
+const MAX_ITERATION: usize = 1000;
 
 pub(crate) fn default_code_guideline() -> String {
     "You are a Linux Software developer who is working in a git repo and \
