@@ -2,6 +2,8 @@
 
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
+
 use super::{
     cmd::{run_command, run_command_checked},
     config::TheyaProjectConfig,
@@ -68,7 +70,7 @@ pub(crate) trait ToolHandlerCmd {
 
 pub(crate) trait ToolHandler<T>
 where
-    T: serde::Serialize,
+    T: Serialize,
 {
     const NAME: &str;
     const DESCRIPTION: &str;
@@ -135,11 +137,20 @@ impl ToolHandler<Vec<String>> for ToolFileList {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
+pub(crate) struct FileContent {
+    pub(crate) file_path: String,
+    pub(crate) line_start: usize,
+    pub(crate) line_end: usize,
+    pub(crate) file_content: String,
+}
+
 pub(crate) struct ToolReadFile;
 
-impl ToolHandler<String> for ToolReadFile {
+impl ToolHandler<FileContent> for ToolReadFile {
     const NAME: &str = "read_file";
-    const DESCRIPTION: &str = "Read content of the specified file";
+    const DESCRIPTION: &str = "Read content of the specified file, return \
+                               file_path, file_range, and file_content";
 
     fn parameters() -> JsonSchema {
         let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
@@ -152,15 +163,41 @@ impl ToolHandler<String> for ToolReadFile {
                 ..Default::default()
             }),
         );
+        json_schema_props.insert(
+            "line_start".into(),
+            Box::new(JsonSchema {
+                kind: Some("integer".into()),
+                description: Some(
+                    "optional argument, only read content after specified \
+                     line, including the specified line, first line is line \
+                     1. Undefined means start from first line."
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+        );
+        json_schema_props.insert(
+            "line_end".into(),
+            Box::new(JsonSchema {
+                kind: Some("integer".into()),
+                description: Some(
+                    "optional argument, only read content till specified \
+                     line, including the specified line, first line is line \
+                     1. Undefined means till the end of file."
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+        );
         JsonSchema {
             kind: Some("object".into()),
             properties: Some(json_schema_props),
-            required: Some(Vec::new()),
+            required: Some(vec!["file_path".to_string()]),
             ..Default::default()
         }
     }
 
-    fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
+    fn run(arguments: serde_json::Value) -> Result<FileContent, TheyaError> {
         if let Some(file_path) = arguments
             .as_object()
             .and_then(|o| o.get("file_path"))
@@ -183,14 +220,58 @@ impl ToolHandler<String> for ToolReadFile {
                     ),
                 ));
             }
-            log::info!("Reading file {file_path}");
-            Ok(std::fs::read_to_string(file_path)?)
+            let full_content = std::fs::read_to_string(file_path)?;
+            let total_line_count = full_content.lines().count();
+            let line_start = arguments
+                .as_object()
+                .and_then(|o| o.get("line_start"))
+                .and_then(|v| v.as_u64())
+                .map(|i| i as usize)
+                .map(|i| i.clamp(1, total_line_count))
+                .unwrap_or(1)
+                - 1;
+
+            let line_end = arguments
+                .as_object()
+                .and_then(|o| o.get("line_end"))
+                .and_then(|v| v.as_u64())
+                .map(|i| i as usize)
+                .map(|i| i.clamp(1, total_line_count))
+                .unwrap_or(total_line_count);
+
+            log::info!(
+                "reading file {file_path}, range {}:{line_end}",
+                line_start + 1
+            );
+
+            if line_end > line_start {
+                Ok(FileContent {
+                    file_path: file_path.to_string(),
+                    line_start: line_start + 1,
+                    line_end,
+                    file_content: full_content
+                        .lines()
+                        .skip(line_start)
+                        .take(line_end - line_start)
+                        .collect::<Vec<&str>>()
+                        .join("\n"),
+                })
+            } else {
+                Err(TheyaError::new(
+                    ErrorKind::AiInvalidReply,
+                    format!(
+                        "ToolReadFile(): Invalid argument line_start and \
+                         line_end: line_end should equal or bigger than \
+                         line_start",
+                    ),
+                ))
+            }
         } else {
             Err(TheyaError::new(
                 ErrorKind::Bug,
                 format!(
-                    "ToolReadFile(): Invalid argument {arguments:?}, \
-                     expecting object with `file_path`"
+                    "ToolReadFile(): Invalid argument: expecting object with \
+                     `file_path`"
                 ),
             ))
         }
@@ -251,8 +332,8 @@ impl ToolHandler<String> for ToolGrep {
             Err(TheyaError::new(
                 ErrorKind::Bug,
                 format!(
-                    "ToolReadFile(): Invalid argument {arguments:?}, \
-                     expecting object with `file_path`"
+                    "ToolGrep(): Invalid argument: expecting object with \
+                     `path` and `pattern`"
                 ),
             ))
         }
@@ -263,8 +344,8 @@ pub(crate) struct ToolWriteFile;
 
 impl ToolHandler<String> for ToolWriteFile {
     const NAME: &str = "write_files";
-    const DESCRIPTION: &str =
-        "Write content to specified file, return PASS or FAIL along with error";
+    const DESCRIPTION: &str = "Write content to specified file, optionally , \
+                               return PASS or FAIL along with error";
 
     fn parameters() -> JsonSchema {
         let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
@@ -282,6 +363,34 @@ impl ToolHandler<String> for ToolWriteFile {
             Box::new(JsonSchema {
                 kind: Some("string".into()),
                 description: Some("file content".into()),
+                ..Default::default()
+            }),
+        );
+        json_schema_props.insert(
+            "line_start".into(),
+            Box::new(JsonSchema {
+                kind: Some("integer".into()),
+                description: Some(
+                    "optional argument, replace lines after line_start with \
+                     specified file_content, including the specified line. \
+                     The first line is line 1. Undefined means start from \
+                     first line."
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+        );
+        json_schema_props.insert(
+            "line_end".into(),
+            Box::new(JsonSchema {
+                kind: Some("integer".into()),
+                description: Some(
+                    "optional argument, replace line before line_end with \
+                     specified file_content, including the specified line. \
+                     The first line is line 1. Undefined means till the end \
+                     of file."
+                        .into(),
+                ),
                 ..Default::default()
             }),
         );
@@ -323,7 +432,6 @@ impl ToolHandler<String> for ToolWriteFile {
                 Ok("PASS".into())
             }
         } else {
-            log::warn!("ToolWriteFile: Invalid argument {arguments:?}");
             Err(TheyaError::new(
                 ErrorKind::Bug,
                 "ToolWriteFile(): argument should be dictionary with \
@@ -459,10 +567,13 @@ impl ToolHandler<Vec<String>> for ToolGitLog {
                 .map(|l| l.to_string())
                 .collect())
         } else {
-            Err(TheyaError::new(
-                ErrorKind::Bug,
-                format!("ToolGitLog(): Invalid argument {arguments:?}"),
-            ))
+            let args =
+                vec!["log", "--pretty=format:'%h %s'", "--max-count=10", "--"];
+            Ok(run_command_checked("git", &args)?
+                .split('\n')
+                .filter(|l| !l.is_empty())
+                .map(|l| l.to_string())
+                .collect())
         }
     }
 }

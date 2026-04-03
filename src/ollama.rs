@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     error::{ErrorKind, TheyaError},
     json_schema::JsonSchema,
-    tools::{ToolHandler, ToolWriteFile},
+    tools::{FileContent, ToolHandler, ToolReadFile, ToolWriteFile},
 };
 
 // Default time out to 5 hours
@@ -15,8 +15,8 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5 * 60 * 60);
 // When to clean up memory after OllamaClient quit.
 const KEEPALIVE: &str = "5m";
 
-// Limit the message size to 64KiB for performance concern
-const MAX_MSG_SIZE: usize = 64 * 1024;
+// Limit the message size to 256KiB for performance concern
+const MAX_MSG_SIZE: usize = 256 * 1024;
 
 /// Document: https://docs.ollama.com/api/generate
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -345,10 +345,25 @@ impl OllamaClient {
         self.chat_history.clear()
     }
 
-    // Will replace write file content with "<omitted>"
+    // * Will replace write file content with "<omitted>"
+    // * For read file, override existing duplicate file content.
     pub(crate) fn add_chat_message(&mut self, mut message: OllamaChatMessage) {
         if message.tool_name.as_deref() == Some(ToolWriteFile::NAME) {
             message.content = "<omitted>".to_string();
+        } else if message.tool_name.as_deref() == Some(ToolReadFile::NAME)
+            && let Ok(file_content) =
+                serde_json::from_str::<FileContent>(message.content.as_str())
+        {
+            for cur_msg in self.chat_history.iter_mut() {
+                if cur_msg.tool_name.as_deref() == Some(ToolReadFile::NAME)
+                    && let Ok(cur_file) = serde_json::from_str::<FileContent>(
+                        cur_msg.content.as_str(),
+                    )
+                    && cur_file.file_path == file_content.file_path
+                {
+                    cur_msg.content = "<omitted>".to_string();
+                }
+            }
         }
         self.chat_history.push(message)
     }
@@ -433,7 +448,7 @@ impl OllamaClient {
             log::info!("Elapsed: {:.02} seconds", elapsed.as_secs_f64());
             if let Some(message) = reply.message.as_ref() {
                 log::info!("AI: {}", message.content);
-                self.chat_history.push(message.clone());
+                self.add_chat_message(message.clone());
             }
 
             Ok(reply)
