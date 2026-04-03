@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     error::{ErrorKind, TheyaError},
     json_schema::JsonSchema,
-    tools::{FileContent, ToolHandler, ToolReadFile, ToolWriteFile},
+    tools::{ToolHandler, ToolWriteFile},
 };
 
 // Default time out to 5 hours
@@ -15,8 +15,8 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5 * 60 * 60);
 // When to clean up memory after OllamaClient quit.
 const KEEPALIVE: &str = "5m";
 
-// Limit the message size to 256KiB for performance concern
-const MAX_MSG_SIZE: usize = 256 * 1024;
+// Limit the message size to 128KiB for performance concern
+const MAX_MSG_SIZE: usize = 128 * 1024;
 
 /// Document: https://docs.ollama.com/api/generate
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -180,6 +180,7 @@ pub(crate) struct OllamaClient {
     pub(crate) num_ctx: i32,
     pub(crate) chat_user_message: OllamaChatMessage,
     pub(crate) chat_history: Vec<OllamaChatMessage>,
+    pub(crate) tool_reply: Option<OllamaChatMessage>,
     pub(crate) tools: Vec<OllamaToolPrototype>,
 }
 
@@ -345,25 +346,14 @@ impl OllamaClient {
         self.chat_history.clear()
     }
 
+    pub(crate) fn set_tool_reply(&mut self, msg: OllamaChatMessage) {
+        self.tool_reply = Some(msg);
+    }
+
     // * Will replace write file content with "<omitted>"
-    // * For read file, override existing duplicate file content.
     pub(crate) fn add_chat_message(&mut self, mut message: OllamaChatMessage) {
         if message.tool_name.as_deref() == Some(ToolWriteFile::NAME) {
             message.content = "<omitted>".to_string();
-        } else if message.tool_name.as_deref() == Some(ToolReadFile::NAME)
-            && let Ok(file_content) =
-                serde_json::from_str::<FileContent>(message.content.as_str())
-        {
-            for cur_msg in self.chat_history.iter_mut() {
-                if cur_msg.tool_name.as_deref() == Some(ToolReadFile::NAME)
-                    && let Ok(cur_file) = serde_json::from_str::<FileContent>(
-                        cur_msg.content.as_str(),
-                    )
-                    && cur_file.file_path == file_content.file_path
-                {
-                    cur_msg.content = "<omitted>".to_string();
-                }
-            }
         }
         self.chat_history.push(message)
     }
@@ -372,9 +362,7 @@ impl OllamaClient {
         self.tools = tools;
     }
 
-    pub(crate) async fn chat(
-        &mut self,
-    ) -> Result<OllamaChatResponse, TheyaError> {
+    pub(crate) fn get_messages(&self) -> Vec<OllamaChatMessage> {
         let mut messages = vec![
             OllamaChatMessage {
                 role: OllamaChatMessageRole::System,
@@ -386,22 +374,21 @@ impl OllamaClient {
         for msg in self.chat_history.iter() {
             messages.push(msg.clone());
         }
+        if let Some(msg) = self.tool_reply.as_ref() {
+            messages.push(msg.clone());
+        }
+        messages
+    }
 
+    pub(crate) async fn chat(
+        &mut self,
+    ) -> Result<OllamaChatResponse, TheyaError> {
+        let mut messages = self.get_messages();
         // Request compressing on historical message if exceeded
         let message_json_str = serde_json::to_string(&messages)?;
         if message_json_str.len() > MAX_MSG_SIZE {
             self.compress_chat_message().await?;
-            messages = vec![
-                OllamaChatMessage {
-                    role: OllamaChatMessageRole::System,
-                    content: self.guideline.to_string(),
-                    ..Default::default()
-                },
-                self.chat_user_message.clone(),
-            ];
-            for msg in self.chat_history.iter() {
-                messages.push(msg.clone());
-            }
+            messages = self.get_messages();
             messages.push(OllamaChatMessage {
                 role: OllamaChatMessageRole::User,
                 content: "Please continue for next step if coding task is not \
@@ -410,6 +397,7 @@ impl OllamaClient {
                 ..Default::default()
             });
         }
+        self.tool_reply = None;
 
         let request = OllamaChat {
             model: self.model.to_string(),

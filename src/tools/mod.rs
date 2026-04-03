@@ -9,9 +9,10 @@ mod traits;
 pub(crate) use self::{
     all::TheyaTools,
     cmd::{ToolCompile, ToolFormat, ToolLintCheck, ToolUnitTest},
-    file::{FileContent, ToolFileList, ToolGrep, ToolReadFile, ToolWriteFile},
+    file::{ToolFileList, ToolGrep, ToolReadFile, ToolWriteFile},
     git::{
-        Git, ToolGitCreateCommit, ToolGitDiff, ToolGitLog, ToolGitShowCommit,
+        Git, ToolGit, ToolGitCreateCommit, ToolGitDiff, ToolGitLog,
+        ToolGitShowCommit,
     },
     traits::{ToolHandler, ToolHandlerCmd},
 };

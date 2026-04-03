@@ -3,9 +3,9 @@
 pub(crate) struct TheyaTools;
 
 use super::{
-    ToolCompile, ToolFileList, ToolFormat, ToolGitCreateCommit, ToolGitDiff,
-    ToolGitLog, ToolGitShowCommit, ToolGrep, ToolHandler, ToolHandlerCmd,
-    ToolLintCheck, ToolReadFile, ToolUnitTest, ToolWriteFile,
+    ToolCompile, ToolFileList, ToolFormat, ToolGit, ToolGitCreateCommit,
+    ToolGitDiff, ToolGitLog, ToolGitShowCommit, ToolGrep, ToolHandler,
+    ToolHandlerCmd, ToolLintCheck, ToolReadFile, ToolUnitTest, ToolWriteFile,
 };
 use crate::{
     config::TheyaProjectConfig,
@@ -31,6 +31,7 @@ impl TheyaTools {
             ToolReadFile::prototype(),
             ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
+            ToolGit::prototype(),
         ]
     }
 
@@ -46,6 +47,7 @@ impl TheyaTools {
             ToolReadFile::prototype(),
             ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
+            ToolGit::prototype(),
         ]
     }
 

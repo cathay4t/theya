@@ -2,11 +2,9 @@
 
 use std::collections::HashMap;
 
-use serde::{Deserialize, Serialize};
-
 use super::{git::Git, traits::ToolHandler};
 use crate::{
-    cmd::run_command_checked,
+    cmd::run_command,
     error::{ErrorKind, TheyaError},
     json_schema::JsonSchema,
     security::is_within_current_dir,
@@ -51,18 +49,12 @@ impl ToolHandler<Vec<String>> for ToolFileList {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Serialize, Deserialize)]
-pub(crate) struct FileContent {
-    pub(crate) file_path: String,
-    pub(crate) file_content: String,
-}
-
 pub(crate) struct ToolReadFile;
 
-impl ToolHandler<FileContent> for ToolReadFile {
+impl ToolHandler<String> for ToolReadFile {
     const NAME: &str = "read_file";
-    const DESCRIPTION: &str = "Read content of the specified file, return \
-                               file_path, file_range, and file_content";
+    const DESCRIPTION: &str = "Read content of the specified file, optionally \
+                               read specified line range";
 
     fn parameters() -> JsonSchema {
         let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
@@ -109,7 +101,7 @@ impl ToolHandler<FileContent> for ToolReadFile {
         }
     }
 
-    fn run(arguments: serde_json::Value) -> Result<FileContent, TheyaError> {
+    fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
         if let Some(file_path) = arguments
             .as_object()
             .and_then(|o| o.get("file_path"))
@@ -132,22 +124,19 @@ impl ToolHandler<FileContent> for ToolReadFile {
                     ),
                 ));
             }
-            Ok(FileContent {
-                file_path: file_path.to_string(),
-                file_content: read_file_range(
-                    file_path,
-                    arguments
-                        .as_object()
-                        .and_then(|o| o.get("line_start"))
-                        .and_then(|v| v.as_u64())
-                        .map(|i| i as usize),
-                    arguments
-                        .as_object()
-                        .and_then(|o| o.get("line_end"))
-                        .and_then(|v| v.as_u64())
-                        .map(|i| i as usize),
-                )?,
-            })
+            Ok(read_file_range(
+                file_path,
+                arguments
+                    .as_object()
+                    .and_then(|o| o.get("line_start"))
+                    .and_then(|v| v.as_u64())
+                    .map(|i| i as usize),
+                arguments
+                    .as_object()
+                    .and_then(|o| o.get("line_end"))
+                    .and_then(|v| v.as_u64())
+                    .map(|i| i as usize),
+            )?)
         } else {
             Err(TheyaError::new(
                 ErrorKind::Bug,
@@ -208,7 +197,23 @@ impl ToolHandler<String> for ToolGrep {
                 ));
             }
             log::info!("Invoking rg -e {pattern} {path} ");
-            Ok(run_command_checked("rg", &["-e", pattern, path])?)
+            let (status, stdout, stderr) =
+                run_command("rg", &["-e", pattern, path])?;
+
+            if status.success() {
+                Ok(stdout)
+            } else if status.code() == Some(1) {
+                Ok("error: no match".to_string())
+            } else {
+                Err(TheyaError::new(
+                    ErrorKind::AiInvalidReply,
+                    format!(
+                        "grep failed with error {}, stdout: '{stdout}', \
+                         stderr: '{stderr}'",
+                        status.code().unwrap_or_default()
+                    ),
+                ))
+            }
         } else {
             Err(TheyaError::new(
                 ErrorKind::Bug,

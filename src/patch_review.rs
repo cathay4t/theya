@@ -78,9 +78,7 @@ impl CommandPatchReview {
                 for tool_call in tool_calls {
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
-                            // We do not compress message here, full history
-                            // is good for patch review
-                            client.add_chat_message(msg);
+                            client.set_tool_reply(msg);
                             log::info!("Appended tool output to queue");
                         }
                         Err(e) => {
