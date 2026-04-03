@@ -447,6 +447,9 @@ impl OllamaClient {
                 std::time::Duration::from_nanos(reply.total_duration_ns);
             log::info!("Elapsed: {:.02} seconds", elapsed.as_secs_f64());
             if let Some(message) = reply.message.as_ref() {
+                if let Some(think) = message.thinking.as_ref() {
+                    log::info!("AI thinks: {}", think);
+                }
                 log::info!("AI: {}", message.content);
                 self.add_chat_message(message.clone());
             }

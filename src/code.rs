@@ -6,9 +6,8 @@ use super::{
     cmd::{run_command, spawn_editor},
     config::{TheyaCodeConfig, TheyaProjectConfig},
     error::{ErrorKind, TheyaError},
-    git::Git,
     ollama::{OllamaChatMessage, OllamaChatMessageRole, OllamaClient},
-    tools::{gen_tool_prototypes_for_coding, handle_tool},
+    tools::{Git, TheyaTools},
 };
 
 const DEFAULT_EDITOR: &str = "vim";
@@ -100,7 +99,7 @@ impl CommandCode {
         log::info!("Coding task: {coding_task}");
 
         #[rustfmt::skip]
-        let prompt = format!("
+        let prompt = format!("\
             You been requested to modify files in current git repo for coding \
             task:\n\
             ```\n\
@@ -118,7 +117,7 @@ impl CommandCode {
         };
         client.set_user_message(init_chat_msg);
         client.reset_chat_history();
-        client.set_tools(gen_tool_prototypes_for_coding());
+        client.set_tools(TheyaTools::code());
 
         for i in 0..MAX_ITERATION {
             log::info!("Iteration {}/{MAX_ITERATION}", i + 1);
@@ -133,7 +132,7 @@ impl CommandCode {
                 && !tool_calls.is_empty()
             {
                 for tool_call in tool_calls {
-                    match handle_tool(tool_call, &project_config) {
+                    match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
                             client.add_chat_message(msg);
                             log::info!("Appended tool output to queue");

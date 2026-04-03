@@ -5,9 +5,8 @@ use std::collections::HashMap;
 use super::{
     config::{TheyaPatchReviewConfig, TheyaProjectConfig},
     error::TheyaError,
-    git::Git,
     ollama::OllamaClient,
-    tools::{gen_tool_prototypes_for_review, handle_tool},
+    tools::{Git, TheyaTools},
 };
 use crate::ollama::{OllamaChatMessage, OllamaChatMessageRole};
 
@@ -60,7 +59,7 @@ impl CommandPatchReview {
         };
         client.set_user_message(init_chat_msg);
         client.reset_chat_history();
-        client.set_tools(gen_tool_prototypes_for_review());
+        client.set_tools(TheyaTools::patch_review());
 
         log::info!("Reviewing patch: {}", Git::get_cur_patch_titile()?.trim());
 
@@ -77,7 +76,7 @@ impl CommandPatchReview {
                 && !tool_calls.is_empty()
             {
                 for tool_call in tool_calls {
-                    match handle_tool(tool_call, &project_config) {
+                    match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
                             // We do not compress message here, full history
                             // is good for patch review

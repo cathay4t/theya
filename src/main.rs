@@ -5,7 +5,6 @@ mod cmd;
 mod code;
 mod config;
 mod error;
-mod git;
 mod json_schema;
 mod ollama;
 mod patch_review;
