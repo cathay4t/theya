@@ -97,6 +97,7 @@ impl TheyaTools {
             }
             ToolGitDiff::NAME => ToolGitDiff::handle(arguments)?,
             ToolGrep::NAME => ToolGrep::handle(arguments)?,
+            ToolGit::NAME => ToolGit::handle(arguments)?,
             tool_name => {
                 log::warn!("Reject AI requested invalid tool: {tool_name}");
                 serde_json::to_string(&format!(
