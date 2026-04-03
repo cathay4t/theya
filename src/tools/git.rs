@@ -194,7 +194,10 @@ impl Git {
     pub(crate) fn file_list(
         path: Option<&str>,
     ) -> Result<Vec<String>, TheyaError> {
-        let path = path.unwrap_or("./");
+        let mut path = path.unwrap_or("./");
+        if path.is_empty() {
+            path = "./";
+        }
         let args = vec!["ls-files", path];
         Self::run(&args).map(|output| {
             output
