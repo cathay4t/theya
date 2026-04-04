@@ -33,7 +33,7 @@ impl ToolHandler<Vec<String>> for ToolGitLog {
         JsonSchema {
             kind: Some("object".into()),
             properties: Some(json_schema_props),
-            required: Some(vec!["file_path".to_string()]),
+            required: Some(vec!["file_paths".to_string()]),
             ..Default::default()
         }
     }
@@ -75,27 +75,47 @@ impl ToolHandler<String> for ToolGitCheckout {
     const DESCRIPTION: &str = "Restore working files using git checkout";
 
     fn parameters() -> JsonSchema {
-        JsonSchema {
-            kind: Some("array".into()),
-            items: Some(Box::new(JsonSchema {
-                kind: Some("string".into()),
+        let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
+            HashMap::new();
+        json_schema_props.insert(
+            "file_paths".into(),
+            Box::new(JsonSchema {
+                kind: Some("array".into()),
+                items: Some(Box::new(JsonSchema {
+                    kind: Some("string".into()),
+                    description: Some("file path".into()),
+                    ..Default::default()
+                })),
                 ..Default::default()
-            })),
-            description: Some("arguments".into()),
+            }),
+        );
+        JsonSchema {
+            kind: Some("object".into()),
+            properties: Some(json_schema_props),
+            required: Some(vec!["file_paths".to_string()]),
             ..Default::default()
         }
     }
 
     fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
-        if let Some(args) = arguments.as_array() {
-            let mut args: Vec<&str> =
-                args.iter().filter_map(|v| v.as_str()).collect();
-            args.insert(0, "checkout");
-            Ok(run_command_checked("git", args.as_slice())?)
+        if let Some(file_paths) = arguments
+            .as_object()
+            .and_then(|o| o.get("file_paths"))
+            .and_then(|v| v.as_array())
+        {
+            let mut args = vec!["checkout", "--"];
+            for file_path in file_paths {
+                if let Some(p) = file_path.as_str() {
+                    args.push(p);
+                }
+            }
+            Ok(run_command_checked("git", &args)?)
         } else {
             Err(TheyaError::new(
                 ErrorKind::AiInvalidReply,
-                "git: need array of string as arguments".to_string(),
+                "git-checkout: need file_paths argument with array of file \
+                 path"
+                    .to_string(),
             ))
         }
     }
