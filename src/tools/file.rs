@@ -279,7 +279,7 @@ impl ToolHandler<String> for ToolWriteFile {
                 ));
             }
             log::info!("Modifying {file_path}");
-            if let Err(e) = std::fs::write(file_path, &file_content) {
+            if let Err(e) = std::fs::write(file_path, file_content) {
                 Ok(format!("FAIL: {e}"))
             } else {
                 Ok("PASS".into())

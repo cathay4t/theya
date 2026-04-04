@@ -3,7 +3,7 @@
 use std::{collections::HashMap, io::Write};
 
 use super::{
-    cmd::{run_command, spawn_editor},
+    cmd::spawn_editor,
     config::{TheyaCodeConfig, TheyaProjectConfig},
     error::{ErrorKind, TheyaError},
     ollama::{OllamaChatMessage, OllamaChatMessageRole, OllamaClient},
@@ -14,6 +14,7 @@ const DEFAULT_EDITOR: &str = "vim";
 const COMMENT_PREFIX: &str = "<!-- Theya: ";
 const COMMENT_POSTFIX: &str = " -->";
 const MAX_ITERATION: usize = 1000;
+const CODE_TASK_FILE: &str = "/tmp/theya_code_task.md";
 
 pub(crate) fn default_code_guideline() -> String {
     "You are a Linux Software developer who is working in a git repo and \
@@ -61,38 +62,33 @@ impl CommandCode {
         let editor = std::env::var("EDITOR")
             .unwrap_or_else(|_| DEFAULT_EDITOR.to_string());
 
-        let tmp_file_path = std::path::PathBuf::from(format!(
-            "{}.md",
-            run_command("mktemp", &["-u"])?.1.trim()
-        ));
+        if !std::path::Path::new(CODE_TASK_FILE).exists() {
+            let mut fd = std::fs::File::create(CODE_TASK_FILE)?;
+            #[rustfmt::skip]
+            fd.write_all(
+                format!(
+                    "\n\n\
+                    {COMMENT_PREFIX}Ollama connected to: {}{COMMENT_POSTFIX}\n\
+                    {COMMENT_PREFIX}Ollama version: {}{COMMENT_POSTFIX}\n\
+                    {COMMENT_PREFIX}Model: {}{COMMENT_POSTFIX}\n\
+                    {COMMENT_PREFIX}Please type your request above, \
+                    save and quit{COMMENT_POSTFIX}\n",
+                    client.uri,
+                    client.version().await?,
+                    client.model,
+                ).as_bytes(),
+            )?;
+        };
 
-        let mut fd = std::fs::File::create(&tmp_file_path)?;
-        #[rustfmt::skip]
-        fd.write_all(
-            format!(
-                "\n\n\
-                {COMMENT_PREFIX}Ollama connected to: {}{COMMENT_POSTFIX}\n\
-                {COMMENT_PREFIX}Ollama version: {}{COMMENT_POSTFIX}\n\
-                {COMMENT_PREFIX}Model: {}{COMMENT_POSTFIX}\n\
-                {COMMENT_PREFIX}Please type your request above, \
-                save and quit{COMMENT_POSTFIX}\n",
-                client.uri,
-                client.version().await?,
-                client.model,
-            ).as_bytes(),
-        )?;
+        spawn_editor(&editor, CODE_TASK_FILE)?;
 
-        spawn_editor(&editor, &tmp_file_path)?;
-
-        let coding_task = std::fs::read_to_string(&tmp_file_path)?
+        let coding_task = std::fs::read_to_string(CODE_TASK_FILE)?
             .lines()
             .filter(|line| !line.starts_with(COMMENT_PREFIX))
             .collect::<Vec<&str>>()
             .join("\n")
             .trim()
             .to_string();
-
-        std::fs::remove_file(&tmp_file_path)?;
 
         if coding_task.is_empty() {
             return Err(TheyaError::new(
@@ -207,6 +203,8 @@ impl CommandCode {
         if let Ok(elapsed) = now.elapsed() {
             log::info!("Elapsed: {} seconds", elapsed.as_secs());
         }
+        std::fs::remove_file(CODE_TASK_FILE)?;
+
         Ok(())
     }
 }

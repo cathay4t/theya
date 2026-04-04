@@ -53,7 +53,7 @@ pub(crate) fn run_command_checked(
 
 pub(crate) fn spawn_editor(
     editor: &str,
-    file_path: &std::path::Path,
+    file_path: &str,
 ) -> Result<(), TheyaError> {
     let mut child = Command::new(editor)
         .arg(file_path)

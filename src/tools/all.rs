@@ -3,10 +3,10 @@
 pub(crate) struct TheyaTools;
 
 use super::{
-    ToolGitCheckout,
-    ToolCompile, ToolFileList, ToolFormat, ToolGit, ToolGitCreateCommit,
-    ToolGitDiff, ToolGitLog, ToolGitShowCommit, ToolGrep, ToolHandler,
-    ToolHandlerCmd, ToolLintCheck, ToolReadFile, ToolUnitTest, ToolWriteFile,
+    ToolCompile, ToolFileList, ToolFormat, ToolGit, ToolGitCheckout,
+    ToolGitCreateCommit, ToolGitDiff, ToolGitLog, ToolGitShowCommit, ToolGrep,
+    ToolHandler, ToolHandlerCmd, ToolLintCheck, ToolReadFile, ToolUnitTest,
+    ToolWriteFile,
 };
 use crate::{
     config::TheyaProjectConfig,

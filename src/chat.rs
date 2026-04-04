@@ -77,10 +77,8 @@ impl CommandChat {
         let editor = std::env::var("EDITOR")
             .unwrap_or_else(|_| DEFAULT_EDITOR.to_string());
 
-        let tmp_file_path = std::path::PathBuf::from(format!(
-            "{}.md",
-            run_command("mktemp", &["-u"])?.1.trim()
-        ));
+        let tmp_file_path =
+            format!("{}.md", run_command("mktemp", &["-u"])?.1.trim());
 
         let mut fd = std::fs::File::create(&tmp_file_path)?;
         #[rustfmt::skip]
