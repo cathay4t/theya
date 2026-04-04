@@ -8,7 +8,7 @@ pub(crate) fn run_command(
     cmd: &str,
     args: &[&str],
 ) -> Result<(ExitStatus, String, String), TheyaError> {
-    log::info!("Invoking command: {} {}", cmd, args.join(" "));
+    log::debug!("Invoking command: {} {}", cmd, args.join(" "));
     let output = Command::new(cmd)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -20,9 +20,9 @@ pub(crate) fn run_command(
     let stderr = String::from_utf8(output.stderr).unwrap_or_default();
     log::trace!("Command stderr: {stderr}");
     if output.status.success() {
-        log::info!("Command succeeded");
+        log::debug!("Command succeeded");
     } else {
-        log::info!(
+        log::warn!(
             "Command failed with {}, {stderr}",
             output.status.code().unwrap_or_default()
         );
