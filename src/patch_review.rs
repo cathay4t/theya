@@ -32,6 +32,8 @@ impl CommandPatchReview {
         config: &TheyaPatchReviewConfig,
         projects_config: &HashMap<String, TheyaProjectConfig>,
     ) -> Result<(), TheyaError> {
+        let now = std::time::SystemTime::now();
+
         std::env::set_current_dir(Git::get_root_dir_path()?.as_str())?;
 
         let uri = config.uri.as_str();
@@ -78,7 +80,7 @@ impl CommandPatchReview {
                 for tool_call in tool_calls {
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
-                            client.set_tool_reply(msg);
+                            client.set_pending_message(msg);
                             log::info!("Appended tool output to queue");
                         }
                         Err(e) => {
@@ -89,6 +91,10 @@ impl CommandPatchReview {
             } else {
                 break;
             }
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            log::info!("Elapsed: {} seconds", elapsed.as_secs());
         }
 
         Ok(())

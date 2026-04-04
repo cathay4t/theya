@@ -10,8 +10,8 @@ use super::{
     tools::{ToolHandler, ToolWriteFile},
 };
 
-// Default time out to 5 hours
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5 * 60 * 60);
+// Default time out to 30 minutes
+const DEFAULT_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 // When to clean up memory after OllamaClient quit.
 const KEEPALIVE: &str = "5m";
 
@@ -180,7 +180,7 @@ pub(crate) struct OllamaClient {
     pub(crate) num_ctx: i32,
     pub(crate) chat_user_message: OllamaChatMessage,
     pub(crate) chat_history: Vec<OllamaChatMessage>,
-    pub(crate) tool_reply: Option<OllamaChatMessage>,
+    pub(crate) pending_message: Option<OllamaChatMessage>,
     pub(crate) tools: Vec<OllamaToolPrototype>,
 }
 
@@ -343,11 +343,12 @@ impl OllamaClient {
     }
 
     pub(crate) fn reset_chat_history(&mut self) {
-        self.chat_history.clear()
+        self.chat_history.clear();
+        self.pending_message = None;
     }
 
-    pub(crate) fn set_tool_reply(&mut self, msg: OllamaChatMessage) {
-        self.tool_reply = Some(msg);
+    pub(crate) fn set_pending_message(&mut self, msg: OllamaChatMessage) {
+        self.pending_message = Some(msg);
     }
 
     // * Will replace write file content with "<omitted>"
@@ -374,7 +375,7 @@ impl OllamaClient {
         for msg in self.chat_history.iter() {
             messages.push(msg.clone());
         }
-        if let Some(msg) = self.tool_reply.as_ref() {
+        if let Some(msg) = self.pending_message.as_ref() {
             messages.push(msg.clone());
         }
         messages
@@ -397,7 +398,7 @@ impl OllamaClient {
                 ..Default::default()
             });
         }
-        self.tool_reply = None;
+        self.pending_message = None;
 
         let request = OllamaChat {
             model: self.model.to_string(),
@@ -419,13 +420,27 @@ impl OllamaClient {
         );
 
         let url = format!("{}/api/chat", self.uri);
-        let response = self
+        let result = self
             .client
             .post(&url)
             .timeout(DEFAULT_TIMEOUT)
             .json(&request)
             .send()
-            .await?;
+            .await;
+        let response = match result {
+            Ok(r) => r,
+            Err(e) => {
+                if e.is_timeout() {
+                    return Err(TheyaError::new(
+                        ErrorKind::Timeout,
+                        format!("Request of {url} timeout"),
+                    ));
+                } else {
+                    return Err(TheyaError::from(e));
+                }
+            }
+        };
+
         let reply: OllamaChatResponse = response.json().await?;
         log::debug!("Got reply {}", serde_json::to_string_pretty(&reply)?);
         if let Some(err_msg) = reply.error.as_ref() {

@@ -8,6 +8,18 @@ pub(crate) enum ErrorKind {
     HttpError,
     AiInvalidReply,
     JsonError,
+    Timeout,
+}
+
+impl ErrorKind {
+    pub(crate) fn can_retry(&self) -> bool {
+        matches!(
+            self,
+            ErrorKind::HttpError
+                | ErrorKind::AiInvalidReply
+                | ErrorKind::Timeout
+        )
+    }
 }
 
 impl std::fmt::Display for ErrorKind {
@@ -25,6 +37,10 @@ pub(crate) struct TheyaError {
 impl TheyaError {
     pub(crate) fn new(kind: ErrorKind, msg: String) -> Self {
         Self { kind, msg }
+    }
+
+    pub(crate) fn can_retry(&self) -> bool {
+        self.kind.can_retry()
     }
 }
 

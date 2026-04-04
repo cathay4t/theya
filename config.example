@@ -1,17 +1,17 @@
 [main]
-uri = "http://ollama.example.org:11434"
+uri = "http://localhost:11434"
 
 [quick-chat]
 modle = "qwen3-coder:30b-a3b-q4_K_M"
 
 [slow-chat]
-modle = "qwen3-coder:30b-a3b-q8_0"
+model = "qwen3.5:35b-a3b-q8_0"
 
 [patch-review]
 modle = "qwen3.5:35b"
 
 [code]
-modle = "qwen3-coder:30b-a3b-q8_0"
+model = "qwen3.5:35b-a3b-q8_0"
 
 [projects.netlink_route]
 # Should match the output of `git remote get-url origin`

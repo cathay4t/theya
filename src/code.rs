@@ -37,6 +37,8 @@ impl CommandCode {
         config: &TheyaCodeConfig,
         projects_config: &HashMap<String, TheyaProjectConfig>,
     ) -> Result<(), TheyaError> {
+        let now = std::time::SystemTime::now();
+
         std::env::set_current_dir(Git::get_root_dir_path()?.as_str())?;
 
         let project_url = Git::get_origin_remote_url()?;
@@ -125,7 +127,18 @@ impl CommandCode {
         for i in 0..MAX_ITERATION {
             log::info!("Iteration {}/{MAX_ITERATION}", i + 1);
             log::info!("Sending out chat message to AI");
-            let reply = client.chat().await?;
+            let reply = match client.chat().await {
+                Ok(r) => r,
+                Err(e) => {
+                    if e.can_retry() {
+                        // start again
+                        client.reset_chat_history();
+                        continue;
+                    } else {
+                        break;
+                    }
+                }
+            };
 
             let Some(message) = reply.message else {
                 continue;
@@ -135,23 +148,65 @@ impl CommandCode {
                 && !tool_calls.is_empty()
             {
                 for tool_call in tool_calls {
+                    let func_name = tool_call.function.name.to_string();
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
-                            client.set_tool_reply(msg);
+                            client.set_pending_message(msg);
                             log::info!("Appended tool output to queue");
                         }
                         Err(e) => {
                             log::warn!("{e}");
+                            client.set_pending_message(OllamaChatMessage {
+                                role: OllamaChatMessageRole::Tool,
+                                tool_name: Some(func_name),
+                                content: format!("FAILED: {e}"),
+                                ..Default::default()
+                            });
                         }
                     }
                 }
             } else {
-                // TODO: Ask AI to check whether task been finished, otherwise
-                // retry
-                break;
+                let prompt = "Do not modify any code, just check whether \
+                              original coding task is finished or not, reply \
+                              YES if done, otherwise provide action plan"
+                    .to_string();
+
+                let check_msg = OllamaChatMessage {
+                    role: OllamaChatMessageRole::User,
+                    content: prompt,
+                    ..Default::default()
+                };
+                client.set_pending_message(check_msg);
+
+                match client.chat().await {
+                    Ok(mut reply) => {
+                        if let Some(msg) = reply.message.take() {
+                            if msg.content.contains("YES")
+                                || msg.content.contains("yes")
+                            {
+                                break;
+                            } else {
+                                client.set_pending_message(msg);
+                                continue;
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        if e.can_retry() {
+                            // start again
+                            client.reset_chat_history();
+                            continue;
+                        } else {
+                            break;
+                        }
+                    }
+                }
             }
         }
 
+        if let Ok(elapsed) = now.elapsed() {
+            log::info!("Elapsed: {} seconds", elapsed.as_secs());
+        }
         Ok(())
     }
 }
