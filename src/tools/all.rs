@@ -3,10 +3,13 @@
 pub(crate) struct TheyaTools;
 
 use super::{
-    ToolCompile, ToolFileList, ToolFormat, ToolGit, ToolGitCheckout,
-    ToolGitCreateCommit, ToolGitDiff, ToolGitLog, ToolGitShowCommit, ToolGrep,
-    ToolHandler, ToolHandlerCmd, ToolLintCheck, ToolReadFile, ToolUnitTest,
-    ToolWriteFile,
+    ToolHandler, ToolHandlerCmd,
+    cmd::{ToolCompile, ToolFormat, ToolLintCheck, ToolUnitTest},
+    file::{ToolFileList, ToolGrep, ToolReadFile, ToolWriteFile},
+    git::{
+        ToolGitCheckout, ToolGitCreateCommit, ToolGitDiff, ToolGitLog,
+        ToolGitShowCommit,
+    },
 };
 use crate::{
     config::TheyaProjectConfig,
@@ -32,7 +35,6 @@ impl TheyaTools {
             ToolReadFile::prototype(),
             ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
-            ToolGit::prototype(),
             ToolGitCheckout::prototype(),
         ]
     }
@@ -49,7 +51,6 @@ impl TheyaTools {
             ToolReadFile::prototype(),
             ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
-            ToolGit::prototype(),
             ToolGitCheckout::prototype(),
         ]
     }
@@ -100,7 +101,6 @@ impl TheyaTools {
             }
             ToolGitDiff::NAME => ToolGitDiff::handle(arguments)?,
             ToolGrep::NAME => ToolGrep::handle(arguments)?,
-            ToolGit::NAME => ToolGit::handle(arguments)?,
             ToolGitCheckout::NAME => ToolGitCheckout::handle(arguments)?,
             tool_name => {
                 log::warn!("Reject AI requested invalid tool: {tool_name}");

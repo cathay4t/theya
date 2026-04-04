@@ -8,11 +8,7 @@ mod traits;
 
 pub(crate) use self::{
     all::TheyaTools,
-    cmd::{ToolCompile, ToolFormat, ToolLintCheck, ToolUnitTest},
-    file::{ToolFileList, ToolGrep, ToolReadFile, ToolWriteFile},
-    git::{
-        Git, ToolGit, ToolGitCheckout, ToolGitCreateCommit, ToolGitDiff,
-        ToolGitLog, ToolGitShowCommit,
-    },
+    file::ToolWriteFile,
+    git::Git,
     traits::{ToolHandler, ToolHandlerCmd},
 };

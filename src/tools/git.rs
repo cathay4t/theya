@@ -69,38 +69,6 @@ impl ToolHandler<Vec<String>> for ToolGitLog {
     }
 }
 
-pub(crate) struct ToolGit;
-impl ToolHandler<String> for ToolGit {
-    const NAME: &str = "git";
-    const DESCRIPTION: &str =
-        "Run arbitrary git command with specified arguments";
-
-    fn parameters() -> JsonSchema {
-        JsonSchema {
-            kind: Some("array".into()),
-            items: Some(Box::new(JsonSchema {
-                kind: Some("string".into()),
-                ..Default::default()
-            })),
-            description: Some("arguments".into()),
-            ..Default::default()
-        }
-    }
-
-    fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
-        if let Some(args) = arguments.as_array() {
-            let args: Vec<&str> =
-                args.iter().filter_map(|v| v.as_str()).collect();
-            Ok(run_command_checked("git", args.as_slice())?)
-        } else {
-            Err(TheyaError::new(
-                ErrorKind::AiInvalidReply,
-                "git: need array of string as arguments".to_string(),
-            ))
-        }
-    }
-}
-
 pub(crate) struct ToolGitCheckout;
 impl ToolHandler<String> for ToolGitCheckout {
     const NAME: &str = "git_checkout";
