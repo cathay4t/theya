@@ -101,6 +101,38 @@ impl ToolHandler<String> for ToolGit {
     }
 }
 
+pub(crate) struct ToolGitCheckout;
+impl ToolHandler<String> for ToolGitCheckout {
+    const NAME: &str = "git_checkout";
+    const DESCRIPTION: &str = "Restore working files using git checkout";
+
+    fn parameters() -> JsonSchema {
+        JsonSchema {
+            kind: Some("array".into()),
+            items: Some(Box::new(JsonSchema {
+                kind: Some("string".into()),
+                ..Default::default()
+            })),
+            description: Some("arguments".into()),
+            ..Default::default()
+        }
+    }
+
+    fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
+        if let Some(args) = arguments.as_array() {
+            let mut args: Vec<&str> =
+                args.iter().filter_map(|v| v.as_str()).collect();
+            args.insert(0, "checkout");
+            Ok(run_command_checked("git", args.as_slice())?)
+        } else {
+            Err(TheyaError::new(
+                ErrorKind::AiInvalidReply,
+                "git: need array of string as arguments".to_string(),
+            ))
+        }
+    }
+}
+
 pub(crate) struct ToolGitDiff;
 impl ToolHandler<String> for ToolGitDiff {
     const NAME: &str = "git_diff";

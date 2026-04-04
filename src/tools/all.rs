@@ -3,6 +3,7 @@
 pub(crate) struct TheyaTools;
 
 use super::{
+    ToolGitCheckout,
     ToolCompile, ToolFileList, ToolFormat, ToolGit, ToolGitCreateCommit,
     ToolGitDiff, ToolGitLog, ToolGitShowCommit, ToolGrep, ToolHandler,
     ToolHandlerCmd, ToolLintCheck, ToolReadFile, ToolUnitTest, ToolWriteFile,
@@ -32,6 +33,7 @@ impl TheyaTools {
             ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
             ToolGit::prototype(),
+            ToolGitCheckout::prototype(),
         ]
     }
 
@@ -48,6 +50,7 @@ impl TheyaTools {
             ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
             ToolGit::prototype(),
+            ToolGitCheckout::prototype(),
         ]
     }
 
@@ -98,6 +101,7 @@ impl TheyaTools {
             ToolGitDiff::NAME => ToolGitDiff::handle(arguments)?,
             ToolGrep::NAME => ToolGrep::handle(arguments)?,
             ToolGit::NAME => ToolGit::handle(arguments)?,
+            ToolGitCheckout::NAME => ToolGitCheckout::handle(arguments)?,
             tool_name => {
                 log::warn!("Reject AI requested invalid tool: {tool_name}");
                 serde_json::to_string(&format!(

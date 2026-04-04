@@ -11,8 +11,8 @@ pub(crate) use self::{
     cmd::{ToolCompile, ToolFormat, ToolLintCheck, ToolUnitTest},
     file::{ToolFileList, ToolGrep, ToolReadFile, ToolWriteFile},
     git::{
-        Git, ToolGit, ToolGitCreateCommit, ToolGitDiff, ToolGitLog,
-        ToolGitShowCommit,
+        Git, ToolGit, ToolGitCheckout, ToolGitCreateCommit, ToolGitDiff,
+        ToolGitLog, ToolGitShowCommit,
     },
     traits::{ToolHandler, ToolHandlerCmd},
 };
