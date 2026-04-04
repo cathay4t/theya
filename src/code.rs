@@ -64,19 +64,12 @@ impl CommandCode {
 
         if !std::path::Path::new(CODE_TASK_FILE).exists() {
             let mut fd = std::fs::File::create(CODE_TASK_FILE)?;
-            #[rustfmt::skip]
             fd.write_all(
                 format!(
-                    "\n\n\
-                    {COMMENT_PREFIX}Ollama connected to: {}{COMMENT_POSTFIX}\n\
-                    {COMMENT_PREFIX}Ollama version: {}{COMMENT_POSTFIX}\n\
-                    {COMMENT_PREFIX}Model: {}{COMMENT_POSTFIX}\n\
-                    {COMMENT_PREFIX}Please type your request above, \
-                    save and quit{COMMENT_POSTFIX}\n",
-                    client.uri,
-                    client.version().await?,
-                    client.model,
-                ).as_bytes(),
+                    "\n\n{COMMENT_PREFIX}Please type your request above, save \
+                     and quit{COMMENT_POSTFIX}\n",
+                )
+                .as_bytes(),
             )?;
         };
 
