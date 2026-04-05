@@ -1,0 +1,7 @@
+ * Split the user coding task to small steps and done one by one with
+   their own context.
+ * Tool: web search
+ * Tool: check related git repo(e.g. linux kernel)
+ * Add partial editing back when model is smart enough
+ * Investigate why qwen-code can do partial file modification and mimic it
+   here.
