@@ -2,6 +2,7 @@
    their own context.
  * Tool: web search
  * Tool: check related git repo(e.g. linux kernel)
+ * Tool: use `cargo doc` to search document of dependency
  * Add partial editing back when model is smart enough
  * Investigate why qwen-code can do partial file modification and mimic it
    here.
