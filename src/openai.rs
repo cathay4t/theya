@@ -126,6 +126,10 @@ pub(crate) struct OpenAiChatRequest {
     pub(crate) temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_tokens: Option<i32>,
+    /// Extended thinking / reasoning effort: "low", "medium", or "high".
+    /// Sent only when the user explicitly enables thinking in the config.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reasoning_effort: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -177,9 +181,11 @@ pub(crate) struct OpenAiClient {
     pub(crate) api_key: String,
     /// Maximum number of tokens to generate per response.
     pub(crate) max_tokens: i32,
+    /// Optional reasoning effort for thinking models: "low", "medium", "high".
+    pub(crate) thinking: Option<String>,
     pub(crate) chat_user_message: OpenAiChatMessage,
     pub(crate) chat_history: Vec<OpenAiChatMessage>,
-    pub(crate) pending_message: Option<OpenAiChatMessage>,
+    pub(crate) pending_messages: Vec<OpenAiChatMessage>,
     pub(crate) tools: Vec<OpenAiToolPrototype>,
 }
 
