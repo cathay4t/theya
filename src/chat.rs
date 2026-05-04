@@ -6,15 +6,12 @@ use super::{
     cmd::{run_command, spawn_editor},
     config::TheyaConfig,
     error::{ErrorKind, TheyaError},
-    ollama::OllamaClient,
+    openai::OpenAiClient,
 };
 
 const DEFAULT_EDITOR: &str = "vim";
 const COMMENT_PREFIX: &str = "<!-- Theya: ";
 const COMMENT_POSTFIX: &str = " -->";
-
-const QUICK_CHAT_CONTEXT: i32 = 1024;
-const SLOW_CHAT_CONTEXT: i32 = 10 * 1024 * 1024;
 
 #[rustfmt::skip]
 const QUICK_SYSTEM_PROMPT: &str = "\
@@ -54,25 +51,38 @@ impl CommandChat {
         config: &TheyaConfig,
     ) -> Result<(), TheyaError> {
         let is_slow = matches.get_flag("SLOW");
-        let (context_num, system_prompt) = if is_slow {
-            (SLOW_CHAT_CONTEXT, SLOW_SYSTEM_PROMPT)
+        let system_prompt = if is_slow {
+            SLOW_SYSTEM_PROMPT
         } else {
-            (QUICK_CHAT_CONTEXT, QUICK_SYSTEM_PROMPT)
+            QUICK_SYSTEM_PROMPT
         };
-        let (uri, model) = if is_slow {
+        let (uri, model, api_key) = if is_slow {
             (
                 config.slow_chat.uri.as_str(),
                 config.slow_chat.model.as_str(),
+                config.slow_chat.api_key.as_str(),
             )
         } else {
             (
                 config.quick_chat.uri.as_str(),
                 config.quick_chat.model.as_str(),
+                config.quick_chat.api_key.as_str(),
             )
         };
 
         let client =
-            OllamaClient::new(uri, model, system_prompt, context_num).await?;
+            OpenAiClient::new(
+                uri,
+                model,
+                system_prompt,
+                api_key,
+                if is_slow {
+                    config.slow_chat.max_tokens
+                } else {
+                    config.quick_chat.max_tokens
+                },
+            )
+            .await?;
 
         let editor = std::env::var("EDITOR")
             .unwrap_or_else(|_| DEFAULT_EDITOR.to_string());
@@ -85,13 +95,11 @@ impl CommandChat {
         fd.write_all(
             format!(
                 "\n\n\
-                {COMMENT_PREFIX}Ollama connected to: {}{COMMENT_POSTFIX}\n\
-                {COMMENT_PREFIX}Ollama version: {}{COMMENT_POSTFIX}\n\
+                {COMMENT_PREFIX}OpenAI API connected to: {}{COMMENT_POSTFIX}\n\
                 {COMMENT_PREFIX}Model: {}{COMMENT_POSTFIX}\n\
                 {COMMENT_PREFIX}Please type your questions above, \
                 save and quit{COMMENT_POSTFIX}\n",
                 client.uri,
-                client.version().await?,
                 client.model,
             ).as_bytes(),
         )?;
@@ -123,7 +131,7 @@ impl CommandChat {
         log::trace!("Prompt:\n{question}");
 
         let reply = client.generate_ai_response(question.clone()).await?;
-        log::trace!("Reply is:\n{reply:?}");
+        log::trace!("Reply content:\n{}", reply.response);
 
         let elapsed = std::time::Duration::from_nanos(reply.total_duration_ns);
 

@@ -8,7 +8,6 @@ mod traits;
 
 pub(crate) use self::{
     all::TheyaTools,
-    file::ToolWriteFile,
     git::Git,
     traits::{ToolHandler, ToolHandlerCmd},
 };

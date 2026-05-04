@@ -6,7 +6,7 @@ mod code;
 mod config;
 mod error;
 mod json_schema;
-mod ollama;
+mod openai;
 mod patch_review;
 mod security;
 mod tools;

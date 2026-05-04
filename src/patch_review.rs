@@ -5,14 +5,13 @@ use std::collections::HashMap;
 use super::{
     config::{TheyaPatchReviewConfig, TheyaProjectConfig},
     error::TheyaError,
-    ollama::OllamaClient,
+    openai::OpenAiClient,
     tools::{Git, TheyaTools},
 };
-use crate::ollama::{OllamaChatMessage, OllamaChatMessageRole};
+use crate::openai::{OpenAiChatMessage, OpenAiChatMessageRole, OpenAiTool};
 
 pub(crate) struct CommandPatchReview;
 
-const CONTEXT_NUMBER: i32 = 10 * 1024 * 1024;
 const MAX_ITERATION: usize = 50;
 
 const SYSTEM_PROMPT: &str =
@@ -46,17 +45,22 @@ impl CommandPatchReview {
             .cloned()
             .unwrap_or_default();
 
-        let mut client =
-            OllamaClient::new(uri, model, SYSTEM_PROMPT, CONTEXT_NUMBER)
-                .await?;
+        let mut client = OpenAiClient::new(
+            uri,
+            model,
+            SYSTEM_PROMPT,
+            config.api_key.as_str(),
+            config.max_tokens,
+        )
+        .await?;
 
         let prompt = "Please review most recent git commit and fix the code \
                       files when required, a good patch(git commit) should \
                       pass the compile, unit test and lint check."
             .to_string();
-        let init_chat_msg = OllamaChatMessage {
-            role: OllamaChatMessageRole::User,
-            content: prompt,
+        let init_chat_msg = OpenAiChatMessage {
+            role: OpenAiChatMessageRole::User,
+            content: Some(prompt),
             ..Default::default()
         };
         client.set_user_message(init_chat_msg);
@@ -68,16 +72,23 @@ impl CommandPatchReview {
         for i in 0..MAX_ITERATION {
             log::info!("Iteration {}/{MAX_ITERATION}", i + 1);
             log::info!("Sending out chat message to AI");
-            let reply = client.chat().await?;
+            let mut reply = client.chat().await?;
 
-            let Some(message) = reply.message else {
+            let Some(message) = reply.take_message() else {
                 continue;
             };
 
             if let Some(tool_calls) = message.tool_calls
                 && !tool_calls.is_empty()
             {
-                for tool_call in tool_calls {
+                for api_tool_call in tool_calls {
+                    let tool_call = match OpenAiTool::try_from(api_tool_call) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            log::warn!("Failed to parse tool arguments: {e}");
+                            continue;
+                        }
+                    };
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
                             client.set_pending_message(msg);

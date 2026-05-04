@@ -6,7 +6,9 @@ use super::{
     cmd::spawn_editor,
     config::{TheyaCodeConfig, TheyaProjectConfig},
     error::{ErrorKind, TheyaError},
-    ollama::{OllamaChatMessage, OllamaChatMessageRole, OllamaClient},
+    openai::{
+        OpenAiChatMessage, OpenAiChatMessageRole, OpenAiClient, OpenAiTool,
+    },
     tools::{Git, TheyaTools},
 };
 
@@ -49,11 +51,12 @@ impl CommandCode {
             .cloned()
             .unwrap_or_default();
 
-        let mut client = OllamaClient::new(
+        let mut client = OpenAiClient::new(
             config.uri.as_str(),
             config.model.as_str(),
             config.guideline.as_str(),
-            config.context_count,
+            config.api_key.as_str(),
+            config.max_tokens,
         )
         .await?;
 
@@ -92,21 +95,17 @@ impl CommandCode {
 
         log::info!("Coding task: {coding_task}");
 
-        #[rustfmt::skip]
-        let prompt = format!("\
+        let prompt = format!(
+            "\
             You been requested to modify files in current git repo for coding \
-            task:\n\
-            ```\n\
-            {coding_task}\n\
-            ```\n\n\
-            Recommendations:\n\
-             1. A good patch should pass compiling, unit test and link check.\n\
-             2. Only create git commit after you consider current changes \
-                is a good patch for specified coding task."
+             task:\n```\n{coding_task}\n```\n\nRecommendations:\n1. A good \
+             patch should pass compiling, unit test and link check.\n2. Only \
+             create git commit after you consider current changes is a good \
+             patch for specified coding task."
         );
-        let init_chat_msg = OllamaChatMessage {
-            role: OllamaChatMessageRole::User,
-            content: prompt,
+        let init_chat_msg = OpenAiChatMessage {
+            role: OpenAiChatMessageRole::User,
+            content: Some(prompt),
             ..Default::default()
         };
         client.set_user_message(init_chat_msg);
@@ -116,7 +115,7 @@ impl CommandCode {
         for i in 0..MAX_ITERATION {
             log::info!("Iteration {}/{MAX_ITERATION}", i + 1);
             log::info!("Sending out chat message to AI");
-            let reply = match client.chat().await {
+            let mut reply = match client.chat().await {
                 Ok(r) => r,
                 Err(e) => {
                     if e.can_retry() {
@@ -129,15 +128,22 @@ impl CommandCode {
                 }
             };
 
-            let Some(message) = reply.message else {
+            let Some(message) = reply.take_message() else {
                 continue;
             };
 
             if let Some(tool_calls) = message.tool_calls
                 && !tool_calls.is_empty()
             {
-                for tool_call in tool_calls {
-                    let func_name = tool_call.function.name.to_string();
+                for api_tool_call in tool_calls {
+                    let tool_call_id = api_tool_call.id.clone();
+                    let tool_call = match OpenAiTool::try_from(api_tool_call) {
+                        Ok(t) => t,
+                        Err(e) => {
+                            log::warn!("Failed to parse tool arguments: {e}");
+                            continue;
+                        }
+                    };
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
                             client.set_pending_message(msg);
@@ -145,10 +151,10 @@ impl CommandCode {
                         }
                         Err(e) => {
                             log::warn!("{e}");
-                            client.set_pending_message(OllamaChatMessage {
-                                role: OllamaChatMessageRole::Tool,
-                                tool_name: Some(func_name),
-                                content: format!("FAILED: {e}"),
+                            client.set_pending_message(OpenAiChatMessage {
+                                role: OpenAiChatMessageRole::Tool,
+                                tool_call_id: Some(tool_call_id),
+                                content: Some(format!("FAILED: {e}")),
                                 ..Default::default()
                             });
                         }
@@ -160,18 +166,19 @@ impl CommandCode {
                               YES if done, otherwise provide action plan"
                     .to_string();
 
-                let check_msg = OllamaChatMessage {
-                    role: OllamaChatMessageRole::User,
-                    content: prompt,
+                let check_msg = OpenAiChatMessage {
+                    role: OpenAiChatMessageRole::User,
+                    content: Some(prompt),
                     ..Default::default()
                 };
                 client.set_pending_message(check_msg);
 
                 match client.chat().await {
                     Ok(mut reply) => {
-                        if let Some(msg) = reply.message.take() {
-                            if msg.content.contains("YES")
-                                || msg.content.contains("yes")
+                        if let Some(msg) = reply.take_message() {
+                            let content = msg.content.as_deref().unwrap_or("");
+                            if content.contains("YES")
+                                || content.contains("yes")
                             {
                                 break;
                             } else {

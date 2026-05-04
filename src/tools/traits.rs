@@ -6,7 +6,7 @@ use crate::{
     cmd::run_command,
     error::TheyaError,
     json_schema::JsonSchema,
-    ollama::{OllamaFunctionPrototype, OllamaToolPrototype},
+    openai::{OpenAiFunctionPrototype, OpenAiToolPrototype},
 };
 
 pub(crate) trait ToolHandlerCmd {
@@ -17,8 +17,8 @@ pub(crate) trait ToolHandlerCmd {
         JsonSchema::default()
     }
 
-    fn prototype() -> OllamaToolPrototype {
-        OllamaFunctionPrototype {
+    fn prototype() -> OpenAiToolPrototype {
+        OpenAiFunctionPrototype {
             name: Self::NAME.to_string(),
             parameters: Self::parameters(),
             description: Some(Self::DESCRIPTION.to_string()),
@@ -68,8 +68,8 @@ where
     const DESCRIPTION: &str;
     fn parameters() -> JsonSchema;
 
-    fn prototype() -> OllamaToolPrototype {
-        OllamaFunctionPrototype {
+    fn prototype() -> OpenAiToolPrototype {
+        OpenAiFunctionPrototype {
             name: Self::NAME.to_string(),
             parameters: Self::parameters(),
             description: Some(Self::DESCRIPTION.to_string()),

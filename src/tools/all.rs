@@ -14,14 +14,14 @@ use super::{
 use crate::{
     config::TheyaProjectConfig,
     error::TheyaError,
-    ollama::{
-        OllamaChatMessage, OllamaChatMessageRole, OllamaTool,
-        OllamaToolPrototype,
+    openai::{
+        OpenAiChatMessage, OpenAiChatMessageRole, OpenAiTool,
+        OpenAiToolPrototype,
     },
 };
 
 impl TheyaTools {
-    pub(crate) fn code() -> Vec<OllamaToolPrototype> {
+    pub(crate) fn code() -> Vec<OpenAiToolPrototype> {
         vec![
             ToolCompile::prototype(),
             ToolFileList::prototype(),
@@ -39,7 +39,7 @@ impl TheyaTools {
         ]
     }
 
-    pub(crate) fn patch_review() -> Vec<OllamaToolPrototype> {
+    pub(crate) fn patch_review() -> Vec<OpenAiToolPrototype> {
         vec![
             ToolCompile::prototype(),
             ToolFileList::prototype(),
@@ -58,9 +58,9 @@ impl TheyaTools {
     /// Return a chat message for replying to AI, second item is boolean on
     /// where previous tool reply should be purged to save context windows.
     pub(crate) fn handle(
-        tool: OllamaTool,
+        tool: OpenAiTool,
         project_config: &TheyaProjectConfig,
-    ) -> Result<OllamaChatMessage, TheyaError> {
+    ) -> Result<OpenAiChatMessage, TheyaError> {
         let arguments = tool.function.arguments;
 
         let args_display = if tool.function.name.as_str() == ToolWriteFile::NAME
@@ -109,10 +109,10 @@ impl TheyaTools {
                 ))?
             }
         };
-        let msg = OllamaChatMessage {
-            role: OllamaChatMessageRole::Tool,
-            tool_name: Some(tool.function.name),
-            content,
+        let msg = OpenAiChatMessage {
+            role: OpenAiChatMessageRole::Tool,
+            tool_call_id: Some(tool.id),
+            content: Some(content),
             ..Default::default()
         };
 

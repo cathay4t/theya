@@ -1,17 +1,27 @@
 [main]
 uri = "http://localhost:11434"
+# api_key can also be set via the OPENAI_API_KEY environment variable
+api_key = "sk-proj-..."
 
 [quick-chat]
 modle = "qwen3-coder:30b-a3b-q4_K_M"
+# max_tokens limits the response length (default: 1024)
+# max_tokens = 1024
 
 [slow-chat]
 model = "qwen3.5:35b-a3b-q8_0"
+# max_tokens limits the response length (default: 10485760)
+# max_tokens = 10485760
 
 [patch-review]
 modle = "qwen3.5:35b"
+# max_tokens limits the response length (default: 10485760)
+# max_tokens = 10485760
 
 [code]
 model = "qwen3.5:35b-a3b-q8_0"
+# max_tokens limits the response length (default: 10485760)
+# max_tokens = 10485760
 
 [projects.netlink_route]
 # Should match the output of `git remote get-url origin`

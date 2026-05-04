@@ -10,12 +10,39 @@ Install `theya` by command:
 cargo install --path .
 ```
 
-By default, it use ollama server running at `http://localhost:11434` with
-`qwen3-coder:30b` model. You may install the model through commands:
+Thyea is using OpenAI API compatible server as backend, you may run
+ollama/shimmy locally or use any cloud services.
 
-```bash
-systemctl start ollama.service
-ollama pull qwen3-coder:30b
+To use ollama locally, you need to modify ollama.service to allow it using
+256k or more context windows size. For example, run
+`systemctl edit ollama.service` and add content below:
+
+```
+[Service]
+Environment="OLLAMA_CONTEXT_LENGTH=262144"
+```
+
+Place `$HOME/.config/theya/config` with content:
+
+```toml
+[main]
+# URI for olllama access
+uri = "http://localhost:11434"
+api_key = "olllama-do-not-need-a-key"
+
+[quick-chat]
+model = "qwen3-coder:30b-a3b-q4_K_M"
+
+[slow-chat]
+model = "qwen3.6:35b-a3b-q8_0"
+
+[patch-review]
+model = "qwen3.6:35b-a3b-q8_0"
+
+[code]
+# You may override global URI here
+uri = "http://dev:11434"
+model = "qwen3.6:35b-a3b-q8_0"
 ```
 
 ### Usage: Patch Review
@@ -55,36 +82,4 @@ theya code
 
 ### Configuration
 
-Place `$HOME/.config/theya/config` with content:
-
-```toml
-[main]
-# Global URI for olllama access
-uri = "http://ws:11434"
-
-[quick-chat]
-model = "qwen3-coder:30b-a3b-q4_K_M"
-
-[slow-chat]
-model = "qwen3-coder:30b-a3b-q8_0"
-
-[patch-review]
-model = "qwen3.5:35b"
-
-[code]
-# You may override global URI here, so `theya code` use different ollama server
-uri = "http://dev:11434"
-model = "qwen3-coder:30b-a3b-q8_0"
-
-[projects.nmstate]
-# Theya use this value to compare with `git remote get-url origin`
-git = "https://github.com/cathay4t/nmstate"
-# Command to format the code
-format = "cd rust; cargo fmt"
-# Command to compile the code
-compile = "cd rust; cargo build"
-# Command to run link check
-lint = "cd rust; cargo clippy"
-# Command to run unit test
-unit_test = "cd rust; cargo test"
-```
+Please check [config.example](config.example) for detail.
