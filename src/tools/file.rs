@@ -230,7 +230,11 @@ pub(crate) struct ToolWriteFile;
 impl ToolHandler<String> for ToolWriteFile {
     const NAME: &str = "write_files";
     const DESCRIPTION: &str =
-        "Write content to specified file, return PASS or FAIL along with error";
+        "Write or partially edit a file. Two modes are supported:\n1. Full \
+         write: provide `file_path` and `file_content` to overwrite the \
+         entire file.\n2. Partial edit: provide `file_path`, `old_str` and \
+         `new_str` to replace the first exact occurrence of `old_str` with \
+         `new_str`.\nReturns PASS or FAIL with an error message.";
 
     fn parameters() -> JsonSchema {
         let mut json_schema_props: HashMap<String, Box<JsonSchema>> =
@@ -247,50 +251,115 @@ impl ToolHandler<String> for ToolWriteFile {
             "file_content".into(),
             Box::new(JsonSchema {
                 kind: Some("string".into()),
-                description: Some("file content".into()),
+                description: Some(
+                    "Full file content. Used for full-file overwrite. \
+                     Mutually exclusive with `old_str`/`new_str`."
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+        );
+        json_schema_props.insert(
+            "old_str".into(),
+            Box::new(JsonSchema {
+                kind: Some("string".into()),
+                description: Some(
+                    "Exact string to find in the file for partial editing. \
+                     Must be used together with `new_str`."
+                        .into(),
+                ),
+                ..Default::default()
+            }),
+        );
+        json_schema_props.insert(
+            "new_str".into(),
+            Box::new(JsonSchema {
+                kind: Some("string".into()),
+                description: Some(
+                    "Replacement string for partial editing. Must be used \
+                     together with `old_str`."
+                        .into(),
+                ),
                 ..Default::default()
             }),
         );
         JsonSchema {
             kind: Some("object".into()),
             properties: Some(json_schema_props),
-            required: Some(vec![
-                "file_path".to_string(),
-                "file_content".to_string(),
-            ]),
+            required: Some(vec!["file_path".to_string()]),
             ..Default::default()
         }
     }
 
     fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
-        if let Some(obj) = arguments.as_object()
-            && let Some(file_path) =
-                obj.get("file_path").and_then(|v| v.as_str())
-            && let Some(file_content) =
-                obj.get("file_content").and_then(|v| v.as_str())
-        {
-            if !is_within_current_dir(file_path)? {
-                return Err(TheyaError::new(
-                    ErrorKind::AiInvalidReply,
-                    format!(
-                        "Cannot write file {file_path} outside of current \
-                         working directory"
-                    ),
-                ));
-            }
-            log::info!("Modifying {file_path}");
-            if let Err(e) = std::fs::write(file_path, file_content) {
-                Ok(format!("FAIL: {e}"))
-            } else {
-                Ok("PASS".into())
-            }
-        } else {
-            Err(TheyaError::new(
+        let Some(obj) = arguments.as_object() else {
+            return Err(TheyaError::new(
                 ErrorKind::Bug,
-                "ToolWriteFile(): argument should be dictionary with \
-                 `file_path` and `file_content`"
+                "ToolWriteFile(): argument should be a JSON object".to_string(),
+            ));
+        };
+
+        let Some(file_path) = obj.get("file_path").and_then(|v| v.as_str())
+        else {
+            return Err(TheyaError::new(
+                ErrorKind::Bug,
+                "ToolWriteFile(): missing required argument `file_path`"
                     .to_string(),
-            ))
+            ));
+        };
+
+        if !is_within_current_dir(file_path)? {
+            return Err(TheyaError::new(
+                ErrorKind::AiInvalidReply,
+                format!(
+                    "Cannot write file {file_path} outside of current working \
+                     directory"
+                ),
+            ));
+        }
+
+        let old_str = obj.get("old_str").and_then(|v| v.as_str());
+        let new_str = obj.get("new_str").and_then(|v| v.as_str());
+        let file_content = obj.get("file_content").and_then(|v| v.as_str());
+
+        match (old_str, new_str, file_content) {
+            (Some(old), Some(new), _) => {
+                // Partial edit: replace first occurrence of old_str with
+                // new_str
+                let existing = match std::fs::read_to_string(file_path) {
+                    Ok(c) => c,
+                    Err(e) => return Ok(format!("FAIL: {e}")),
+                };
+                if !existing.contains(old) {
+                    return Ok(format!(
+                        "FAIL: `old_str` not found in {file_path}"
+                    ));
+                }
+                log::info!("Partially editing {file_path}");
+                let updated = existing.replacen(old, new, 1);
+                if let Err(e) = std::fs::write(file_path, updated) {
+                    Ok(format!("FAIL: {e}"))
+                } else {
+                    Ok("PASS".into())
+                }
+            }
+            (None, None, Some(content)) => {
+                // Full write
+                log::info!("Overwriting {file_path}");
+                if let Err(e) = std::fs::write(file_path, content) {
+                    Ok(format!("FAIL: {e}"))
+                } else {
+                    Ok("PASS".into())
+                }
+            }
+            (Some(_), None, _) | (None, Some(_), _) => {
+                Ok("FAIL: `old_str` and `new_str` must be provided together"
+                    .to_string())
+            }
+            (None, None, None) => Ok("FAIL: provide either `file_content` \
+                                      for a full write or \
+                                      `old_str`+`new_str` for a partial edit"
+                .to_string()),
         }
     }
 }
@@ -397,5 +466,52 @@ mod test {
         );
 
         remove_test_file(test_file_path);
+    }
+
+    #[test]
+    fn write_file_full() {
+        let path = "theya_test_write_full.tmp";
+        remove_test_file(path);
+
+        let args = serde_json::json!({
+            "file_path": path,
+            "file_content": "hello\nworld\n"
+        });
+        assert_eq!(ToolWriteFile::run(args).unwrap(), "PASS");
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "hello\nworld\n");
+
+        remove_test_file(path);
+    }
+
+    #[test]
+    fn write_file_partial_edit() {
+        let path = "theya_test_write_partial.tmp";
+        std::fs::write(path, "foo bar baz\nfoo again\n").unwrap();
+
+        let args = serde_json::json!({
+            "file_path": path,
+            "old_str": "foo bar baz",
+            "new_str": "qux"
+        });
+        assert_eq!(ToolWriteFile::run(args).unwrap(), "PASS");
+        assert_eq!(std::fs::read_to_string(path).unwrap(), "qux\nfoo again\n");
+
+        remove_test_file(path);
+    }
+
+    #[test]
+    fn write_file_partial_edit_not_found() {
+        let path = "theya_test_write_notfound.tmp";
+        std::fs::write(path, "hello\n").unwrap();
+
+        let args = serde_json::json!({
+            "file_path": path,
+            "old_str": "nonexistent",
+            "new_str": "replacement"
+        });
+        let result = ToolWriteFile::run(args).unwrap();
+        assert!(result.starts_with("FAIL:"));
+
+        remove_test_file(path);
     }
 }

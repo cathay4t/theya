@@ -143,17 +143,31 @@ impl ToolHandler<String> for ToolGitShowCommit {
                                recent commit when no argument provided";
 
     fn parameters() -> JsonSchema {
+        let mut props: HashMap<String, Box<JsonSchema>> = HashMap::new();
+        props.insert(
+            "commit_hash".into(),
+            Box::new(JsonSchema {
+                kind: Some("string".into()),
+                description: Some(
+                    "commit hash to query, if omit, show recent commit".into(),
+                ),
+                ..Default::default()
+            }),
+        );
         JsonSchema {
-            kind: Some("string".into()),
-            description: Some(
-                "commit hash to query, if omit, show recent commit".into(),
-            ),
+            kind: Some("object".into()),
+            properties: Some(props),
+            required: Some(Vec::new()),
             ..Default::default()
         }
     }
 
     fn run(arguments: serde_json::Value) -> Result<String, TheyaError> {
-        if let serde_json::Value::String(hash) = &arguments {
+        if let Some(hash) = arguments
+            .as_object()
+            .and_then(|o| o.get("commit_hash"))
+            .and_then(|v| v.as_str())
+        {
             Ok(run_command_checked("git", &["show", hash])?)
         } else {
             Ok(run_command_checked("git", &["show"])?)

@@ -91,7 +91,7 @@ impl CommandPatchReview {
                     };
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
-                            client.set_pending_message(msg);
+                            client.add_chat_message(msg);
                             log::info!("Appended tool output to queue");
                         }
                         Err(e) => {

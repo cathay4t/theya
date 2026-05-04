@@ -146,12 +146,12 @@ impl CommandCode {
                     };
                     match TheyaTools::handle(tool_call, &project_config) {
                         Ok(msg) => {
-                            client.set_pending_message(msg);
+                            client.add_chat_message(msg);
                             log::info!("Appended tool output to queue");
                         }
                         Err(e) => {
                             log::warn!("{e}");
-                            client.set_pending_message(OpenAiChatMessage {
+                            client.add_chat_message(OpenAiChatMessage {
                                 role: OpenAiChatMessageRole::Tool,
                                 tool_call_id: Some(tool_call_id),
                                 content: Some(format!("FAILED: {e}")),
@@ -171,7 +171,7 @@ impl CommandCode {
                     content: Some(prompt),
                     ..Default::default()
                 };
-                client.set_pending_message(check_msg);
+                client.add_chat_message(check_msg);
 
                 match client.chat().await {
                     Ok(mut reply) => {
@@ -182,7 +182,7 @@ impl CommandCode {
                             {
                                 break;
                             } else {
-                                client.set_pending_message(msg);
+                                client.add_chat_message(msg);
                                 continue;
                             }
                         }

@@ -70,19 +70,18 @@ impl CommandChat {
             )
         };
 
-        let client =
-            OpenAiClient::new(
-                uri,
-                model,
-                system_prompt,
-                api_key,
-                if is_slow {
-                    config.slow_chat.max_tokens
-                } else {
-                    config.quick_chat.max_tokens
-                },
-            )
-            .await?;
+        let client = OpenAiClient::new(
+            uri,
+            model,
+            system_prompt,
+            api_key,
+            if is_slow {
+                config.slow_chat.max_tokens
+            } else {
+                config.quick_chat.max_tokens
+            },
+        )
+        .await?;
 
         let editor = std::env::var("EDITOR")
             .unwrap_or_else(|_| DEFAULT_EDITOR.to_string());

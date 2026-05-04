@@ -113,6 +113,10 @@ pub(crate) struct OpenAiChatMessage {
     /// Present on assistant messages that request tool calls
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) tool_calls: Option<Vec<OpenAiApiToolCall>>,
+    /// DeepSeek thinking mode: chain-of-thought content that must be echoed
+    /// back to the API verbatim in subsequent requests.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) reasoning_content: Option<String>,
 }
 
 /// Document: https://platform.openai.com/docs/api-reference/chat/create
@@ -126,10 +130,6 @@ pub(crate) struct OpenAiChatRequest {
     pub(crate) temperature: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) max_tokens: Option<i32>,
-    /// Extended thinking / reasoning effort: "low", "medium", or "high".
-    /// Sent only when the user explicitly enables thinking in the config.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub(crate) reasoning_effort: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -181,11 +181,8 @@ pub(crate) struct OpenAiClient {
     pub(crate) api_key: String,
     /// Maximum number of tokens to generate per response.
     pub(crate) max_tokens: i32,
-    /// Optional reasoning effort for thinking models: "low", "medium", "high".
-    pub(crate) thinking: Option<String>,
     pub(crate) chat_user_message: OpenAiChatMessage,
     pub(crate) chat_history: Vec<OpenAiChatMessage>,
-    pub(crate) pending_messages: Vec<OpenAiChatMessage>,
     pub(crate) tools: Vec<OpenAiToolPrototype>,
 }
 
@@ -234,7 +231,7 @@ impl OpenAiClient {
         format!("Bearer {}", self.api_key)
     }
 
-    async fn post_chat_completions(
+    async fn execute_chat_completion(
         &self,
         request: &OpenAiChatRequest,
     ) -> Result<OpenAiChatResponse, TheyaError> {
@@ -297,7 +294,7 @@ impl OpenAiClient {
             max_tokens: Some(self.max_tokens),
             ..Default::default()
         };
-        let mut reply = self.post_chat_completions(&request).await?;
+        let mut reply = self.execute_chat_completion(&request).await?;
         let elapsed_ns = start.elapsed().as_nanos() as u64;
         let response = reply
             .take_message()
@@ -344,11 +341,10 @@ impl OpenAiClient {
             tools: self.tools.clone(),
             temperature: Some(1.0),
             max_tokens: Some(self.max_tokens),
-            ..Default::default()
         };
 
         log::info!("Request AI to make summery on historical messages");
-        let mut reply = self.post_chat_completions(&request).await?;
+        let mut reply = self.execute_chat_completion(&request).await?;
         if let Some(message) = reply.take_message() {
             let content = message.content.as_deref().unwrap_or("").to_string();
             log::info!("AI: {}", content);
@@ -365,11 +361,6 @@ impl OpenAiClient {
 
     pub(crate) fn reset_chat_history(&mut self) {
         self.chat_history.clear();
-        self.pending_message = None;
-    }
-
-    pub(crate) fn set_pending_message(&mut self, msg: OpenAiChatMessage) {
-        self.pending_message = Some(msg);
     }
 
     pub(crate) fn add_chat_message(&mut self, message: OpenAiChatMessage) {
@@ -390,9 +381,6 @@ impl OpenAiClient {
             self.chat_user_message.clone(),
         ];
         for msg in self.chat_history.iter() {
-            messages.push(msg.clone());
-        }
-        if let Some(msg) = self.pending_message.as_ref() {
             messages.push(msg.clone());
         }
         messages
@@ -417,7 +405,6 @@ impl OpenAiClient {
                 ..Default::default()
             });
         }
-        self.pending_message = None;
 
         let request = OpenAiChatRequest {
             model: self.model.clone(),
@@ -425,13 +412,18 @@ impl OpenAiClient {
             tools: self.tools.clone(),
             temperature: Some(1.0),
             max_tokens: Some(self.max_tokens),
-            ..Default::default()
         };
 
-        let reply = self.post_chat_completions(&request).await?;
+        let reply = self.execute_chat_completion(&request).await?;
 
         if let Some(message) = reply.message().cloned() {
-            log::info!("AI: {}", message.content.as_deref().unwrap_or(""));
+            if let Some(reasoning) = message.reasoning_content.as_ref() {
+                log::info!("AI reasoning: {}", reasoning);
+            }
+
+            if let Some(msg) = message.content.as_ref() {
+                log::info!("AI: {}", msg);
+            }
             self.add_chat_message(message);
         }
 
