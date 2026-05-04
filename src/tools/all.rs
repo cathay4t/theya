@@ -4,6 +4,7 @@ pub(crate) struct TheyaTools;
 
 use super::{
     ToolHandler, ToolHandlerCmd,
+    cargo::ToolCargo,
     cmd::{ToolCompile, ToolFormat, ToolLintCheck, ToolUnitTest},
     file::{ToolFileList, ToolGrep, ToolReadFile, ToolWriteFile},
     git::{
@@ -21,38 +22,62 @@ use crate::{
 };
 
 impl TheyaTools {
-    pub(crate) fn code() -> Vec<OpenAiToolPrototype> {
-        vec![
-            ToolCompile::prototype(),
+    pub(crate) fn code(
+        project_config: &TheyaProjectConfig,
+    ) -> Vec<OpenAiToolPrototype> {
+        let mut tools = vec![
+            ToolCargo::prototype(),
             ToolFileList::prototype(),
-            ToolFormat::prototype(),
             ToolGitCreateCommit::prototype(),
             ToolGitDiff::prototype(),
             ToolGitLog::prototype(),
             ToolGitShowCommit::prototype(),
             ToolGrep::prototype(),
-            ToolLintCheck::prototype(),
             ToolReadFile::prototype(),
-            ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
             ToolGitCheckout::prototype(),
-        ]
+        ];
+        if project_config.compile.is_some() {
+            tools.push(ToolCompile::prototype());
+        }
+        if project_config.format.is_some() {
+            tools.push(ToolFormat::prototype());
+        }
+        if project_config.lint.is_some() {
+            tools.push(ToolLintCheck::prototype());
+        }
+        if project_config.unit_test.is_some() {
+            tools.push(ToolUnitTest::prototype());
+        }
+        tools
     }
 
-    pub(crate) fn patch_review() -> Vec<OpenAiToolPrototype> {
-        vec![
-            ToolCompile::prototype(),
+    pub(crate) fn patch_review(
+        project_config: &TheyaProjectConfig,
+    ) -> Vec<OpenAiToolPrototype> {
+        let mut tools = vec![
+            ToolCargo::prototype(),
             ToolFileList::prototype(),
-            ToolFormat::prototype(),
             ToolGitLog::prototype(),
             ToolGitShowCommit::prototype(),
             ToolGrep::prototype(),
-            ToolLintCheck::prototype(),
             ToolReadFile::prototype(),
-            ToolUnitTest::prototype(),
             ToolWriteFile::prototype(),
             ToolGitCheckout::prototype(),
-        ]
+        ];
+        if project_config.compile.is_some() {
+            tools.push(ToolCompile::prototype());
+        }
+        if project_config.format.is_some() {
+            tools.push(ToolFormat::prototype());
+        }
+        if project_config.lint.is_some() {
+            tools.push(ToolLintCheck::prototype());
+        }
+        if project_config.unit_test.is_some() {
+            tools.push(ToolUnitTest::prototype());
+        }
+        tools
     }
 
     /// Return a chat message for replying to AI, second item is boolean on
@@ -76,6 +101,7 @@ impl TheyaTools {
         );
 
         let content = match tool.function.name.as_str() {
+            ToolCargo::NAME => ToolCargo::handle(arguments)?,
             ToolFileList::NAME => ToolFileList::handle(arguments)?,
             ToolReadFile::NAME => ToolReadFile::handle(arguments)?,
             ToolWriteFile::NAME => ToolWriteFile::handle(arguments)?,

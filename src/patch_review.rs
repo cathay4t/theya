@@ -65,7 +65,7 @@ impl CommandPatchReview {
         };
         client.set_user_message(init_chat_msg);
         client.reset_chat_history();
-        client.set_tools(TheyaTools::patch_review());
+        client.set_tools(TheyaTools::patch_review(&project_config));
 
         log::info!("Reviewing patch: {}", Git::get_cur_patch_titile()?.trim());
 

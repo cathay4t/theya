@@ -110,7 +110,7 @@ impl CommandCode {
         };
         client.set_user_message(init_chat_msg);
         client.reset_chat_history();
-        client.set_tools(TheyaTools::code());
+        client.set_tools(TheyaTools::code(&project_config));
 
         for i in 0..MAX_ITERATION {
             log::info!("Iteration {}/{MAX_ITERATION}", i + 1);
