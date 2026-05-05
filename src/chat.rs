@@ -44,6 +44,12 @@ impl CommandChat {
                          performance. Default false -- quick casual chat",
                     ),
             )
+            .arg(
+                clap::Arg::new("QUESTION")
+                    .help("Question to ask directly without opening an editor")
+                    .required(false)
+                    .num_args(1..),
+            )
     }
 
     pub(crate) async fn handle(
@@ -82,6 +88,31 @@ impl CommandChat {
             },
         )
         .await?;
+
+        // If the user supplied an inline question, skip the editor entirely
+        // and print the answer to stdout.
+        if let Some(words) = matches
+            .get_many::<String>("QUESTION")
+            .map(|v| v.map(String::as_str).collect::<Vec<_>>().join(" "))
+        {
+            if words.is_empty() {
+                return Err(TheyaError::new(
+                    ErrorKind::AiInvalidReply,
+                    "Got empty question, quitting".into(),
+                ));
+            }
+            let mut question = words;
+            if !is_slow {
+                question.push_str(" (make the answer short)");
+            }
+            log::debug!("Question is:```\n{question}\n```");
+            let reply = client.generate_ai_response(question).await?;
+            let elapsed =
+                std::time::Duration::from_nanos(reply.total_duration_ns);
+            log::info!("Elapsed: {} seconds", elapsed.as_secs());
+            println!("{}", reply.response);
+            return Ok(());
+        }
 
         let editor = std::env::var("EDITOR")
             .unwrap_or_else(|_| DEFAULT_EDITOR.to_string());
