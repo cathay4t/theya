@@ -103,6 +103,7 @@ pub(super) async fn handle_add(
                 title: title.clone(),
                 content: chunk,
                 created_at: created_at.clone(),
+                project: String::new(),
             }
         })
         .collect();

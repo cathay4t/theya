@@ -48,6 +48,10 @@ impl CommandMemory {
                     ),
             )
             .subcommand(
+                clap::Command::new("list")
+                    .about("List all knowledge database entries"),
+            )
+            .subcommand(
                 clap::Command::new("dump")
                     .about("Dump the vector database to a JSON file")
                     .arg(
@@ -122,6 +126,8 @@ impl CommandMemory {
             super::add::handle_add(&db, m, config).await
         } else if let Some(m) = matches.subcommand_matches("search") {
             super::search::handle_search(&db, m, config).await
+        } else if matches.subcommand_matches("list").is_some() {
+            super::list::handle_list(&db).await
         } else if let Some(m) = matches.subcommand_matches("dump") {
             super::dump::handle_dump(&db, m).await
         } else if let Some(m) = matches.subcommand_matches("load") {

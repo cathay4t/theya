@@ -13,6 +13,7 @@ pub(super) struct AgentHistory {
 pub(super) struct CopilotHistory {
     pub(super) session_id: String,
     pub(super) messages: Vec<AgentHistory>,
+    pub(super) project: String,
 }
 
 impl CopilotHistory {
@@ -101,9 +102,15 @@ impl CopilotHistoryStore {
                 continue;
             }
 
+            let workspace_path =
+                format!("{session_dir}/{session_id}/workspace.yaml");
+            let project = read_project_from_workspace(&workspace_path)
+                .unwrap_or_else(|_| String::new());
+
             histories.push(CopilotHistory {
                 session_id,
                 messages,
+                project,
             });
         }
         Ok(histories)
@@ -158,4 +165,24 @@ fn parse_copilot_events(content: &str) -> Vec<AgentHistory> {
     }
 
     messages
+}
+
+/// Read project information from workspace.yaml.
+/// Returns project string in format "host_type:repository" (e.g.,
+/// "github:owner/repo").
+fn read_project_from_workspace(path: &str) -> Result<String, TheyaError> {
+    let content = std::fs::read_to_string(path)?;
+    let yaml: serde_yaml::Value =
+        serde_yaml::from_str(&content).map_err(|e| {
+            TheyaError::from(format!("Failed to parse workspace.yaml: {}", e))
+        })?;
+
+    let host_type = yaml["host_type"].as_str().ok_or_else(|| {
+        TheyaError::from("Missing host_type in workspace.yaml")
+    })?;
+    let repository = yaml["repository"].as_str().ok_or_else(|| {
+        TheyaError::from("Missing repository in workspace.yaml")
+    })?;
+
+    Ok(format!("{}:{}", host_type, repository))
 }

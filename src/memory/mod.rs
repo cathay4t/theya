@@ -5,6 +5,7 @@ mod command;
 mod copilot;
 mod db;
 mod dump;
+mod list;
 mod load;
 mod recalc;
 mod search;

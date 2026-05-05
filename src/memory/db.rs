@@ -23,6 +23,7 @@ pub(super) struct MemoryEntry {
     pub(super) title: String,
     pub(super) content: String,
     pub(super) created_at: String,
+    pub(super) project: String,
 }
 
 pub(super) struct SearchResult {
@@ -42,6 +43,7 @@ pub(super) struct DumpEntry {
     pub(super) content: String,
     pub(super) created_at: String,
     pub(super) vector: Vec<f32>,
+    pub(super) project: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -78,6 +80,7 @@ impl VectorStore {
                 false,
             ),
             Field::new("created_at", DataType::Utf8, false),
+            Field::new("project", DataType::Utf8, false),
         ]))
     }
 
@@ -324,6 +327,7 @@ impl VectorStore {
             let titles = str_col(batch, "title");
             let contents = str_col(batch, "content");
             let created_ats = str_col(batch, "created_at");
+            let projects = str_col(batch, "project");
             let vectors = vector_col(batch, "vector");
             for i in 0..batch.num_rows() {
                 out.push(DumpEntry {
@@ -338,6 +342,7 @@ impl VectorStore {
                         .unwrap_or("")
                         .to_string(),
                     vector: vectors.get(i).cloned().unwrap_or_default(),
+                    project: projects.get(i).copied().unwrap_or("").to_string(),
                 });
             }
         }
@@ -370,6 +375,7 @@ impl VectorStore {
                 title: e.title.clone(),
                 content: e.content.clone(),
                 created_at: e.created_at.clone(),
+                project: e.project.clone(),
             })
             .collect();
         let vecs: Vec<Vec<f32>> =
@@ -460,6 +466,12 @@ fn make_record_batch(
             .map(|e| e.created_at.as_str())
             .collect::<Vec<_>>(),
     );
+    let projects = StringArray::from(
+        entries
+            .iter()
+            .map(|e| e.project.as_str())
+            .collect::<Vec<_>>(),
+    );
 
     let vectors = FixedSizeListArray::from_iter_primitive::<Float32Type, _, _>(
         embeddings
@@ -478,6 +490,7 @@ fn make_record_batch(
             Arc::new(contents),
             Arc::new(vectors),
             Arc::new(created_ats),
+            Arc::new(projects),
         ],
     )?)
 }

@@ -8,6 +8,7 @@
         * [Usage: Code](#usage-code)
         * [Usage: Memory](#usage-memory)
             * [Populate the knowledge base](#populate-the-knowledge-base)
+            * [List entries](#list-entries)
             * [Search](#search)
             * [Backup and restore](#backup-and-restore)
             * [Recalculate embedding vectors](#recalculate-embedding-vectors)
@@ -124,6 +125,11 @@ theya memory update
 # or: theya m update
 ```
 
+This command automatically extracts important facts and learnings from your
+recent Copilot sessions and stores them in the knowledge base. Each entry is
+tagged with the project it was extracted from (format: `host_type:owner/repo`,
+e.g., `github:cathay4t/theya`), allowing you to organize knowledge by project.
+
 Add a file directly:
 
 ```bash
@@ -135,6 +141,20 @@ Compose a free-form note in `$EDITOR`:
 ```bash
 theya memory add --interactive
 ```
+
+#### List entries
+
+View all stored knowledge entries:
+
+```bash
+theya memory list
+# or: theya m list
+```
+
+Displays all entries in a table format showing:
+- **ID**: Unique identifier for the entry
+- **Created At**: Timestamp of creation
+- **Title**: Brief description of the entry
 
 #### Search
 

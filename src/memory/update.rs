@@ -78,6 +78,7 @@ pub(super) async fn handle_update(
             title: format!("Copilot session {prefix}"),
             content: knowledge,
             created_at: history.max_timestamp().to_string(),
+            project: history.project.clone(),
         });
     }
 
