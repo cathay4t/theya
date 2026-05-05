@@ -6,6 +6,7 @@ mod code;
 mod config;
 mod error;
 mod json_schema;
+mod memory;
 mod openai;
 mod patch_review;
 mod security;
@@ -13,7 +14,7 @@ mod tools;
 
 use self::{
     chat::CommandChat, code::CommandCode, config::TheyaConfig,
-    error::TheyaError, patch_review::CommandPatchReview,
+    error::TheyaError, memory::CommandMemory, patch_review::CommandPatchReview,
 };
 
 #[tokio::main]
@@ -38,7 +39,8 @@ async fn main() -> Result<(), TheyaError> {
         .subcommand_required(true)
         .subcommand(CommandPatchReview::new_cmd())
         .subcommand(CommandChat::new_cmd())
-        .subcommand(CommandCode::new_cmd());
+        .subcommand(CommandCode::new_cmd())
+        .subcommand(CommandMemory::new_cmd());
 
     let matches = cli_cmd.get_matches_mut();
 
@@ -90,6 +92,10 @@ async fn handle_subcommand(
         Ok(())
     } else if matches.subcommand_matches(CommandCode::CMD).is_some() {
         CommandCode::handle(&config.code, &config.projects).await?;
+        Ok(())
+    } else if let Some(matches) = matches.subcommand_matches(CommandMemory::CMD)
+    {
+        CommandMemory::handle(matches, config).await?;
         Ok(())
     } else {
         Err(TheyaError::from("Unknown command"))

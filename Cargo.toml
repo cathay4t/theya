@@ -15,3 +15,8 @@ clap = { version = "4.5.54", features = ["cargo"] }
 log = { version = "0.4.29", features = ["std"] }
 env_logger = "0.11.8"
 toml = "1.0.6"
+lancedb = "0.27"
+arrow-array = "57"
+arrow-schema = "57"
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }

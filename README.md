@@ -1,3 +1,20 @@
+<!-- vim-markdown-toc GFM -->
+
+* [Hi Theya](#hi-theya)
+    * [Usage](#usage)
+        * [Usage: Patch Review](#usage-patch-review)
+        * [Usage: Quick chat](#usage-quick-chat)
+        * [Usage: Slow Chat](#usage-slow-chat)
+        * [Usage: Code](#usage-code)
+        * [Usage: Memory](#usage-memory)
+            * [Populate the knowledge base](#populate-the-knowledge-base)
+            * [Search](#search)
+            * [Backup and restore](#backup-and-restore)
+            * [Recalculate embedding vectors](#recalculate-embedding-vectors)
+    * [Configuration](#configuration)
+
+<!-- vim-markdown-toc -->
+
 # Hi Theya
 
 Theya: Offline AI coding assistant
@@ -43,6 +60,15 @@ model = "qwen3.6:35b-a3b-q8_0"
 # You may override global URI here
 uri = "http://dev:11434"
 model = "qwen3.6:35b-a3b-q8_0"
+
+[memory]
+# Use local model to prevent data leak
+embed_dimensions = 1024
+embed_uri = "http://localhost:11434"
+embed_model = "qwen3-embedding:8b"
+model = "qwen3.6:35b-a3b-q8_0"
+uri = "http://localhost:11434"
+copilot = true
 ```
 
 ### Usage: Patch Review
@@ -80,6 +106,66 @@ theya code
 # Type your coding task in the editor, save and quit.
 ```
 
-### Configuration
+### Usage: Memory
+
+Theya can build a local long-term knowledge base backed by a
+[LanceDB](https://lancedb.github.io/lancedb/) vector database stored in
+`$HOME/.local/share/theya/knowledge_db`.
+
+An embedding model is required. Configure it under `[memory]` in your config
+file (see **Configuration** below).
+
+#### Populate the knowledge base
+
+Extract and index knowledge from your GitHub Copilot chat history:
+
+```bash
+theya memory update
+# or: theya m update
+```
+
+Add a file directly:
+
+```bash
+theya memory add <file_path>
+```
+
+Compose a free-form note in `$EDITOR`:
+
+```bash
+theya memory add --interactive
+```
+
+#### Search
+
+```bash
+theya memory search <prompt>
+```
+
+#### Backup and restore
+
+Dump the entire database (entries + embedding vectors) to a JSON file:
+
+```bash
+theya memory dump <output_file>
+```
+
+Restore from a previous dump (prompts whether to wipe existing data first):
+
+```bash
+theya memory load <input_file>
+```
+
+#### Recalculate embedding vectors
+
+When you change `embed_model` in the config, all stored vectors are
+automatically recalculated the next time any `theya memory` subcommand runs.
+You can also trigger this manually:
+
+```bash
+theya memory recalc
+```
+
+## Configuration
 
 Please check [config.example](config.example) for detail.

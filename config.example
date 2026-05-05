@@ -23,6 +23,22 @@ model = "qwen3.5:35b-a3b-q8_0"
 # max_tokens limits the response length (default: 10485760)
 # max_tokens = 10485760
 
+[memory]
+# Memorize important information extracted from communication history of
+# copilot, default to false.
+copilot = true
+# Model for knowledge extraction (falls back to quick-chat model if not set)
+model = "qwen3-coder:30b-a3b-q4_K_M"
+# URI for the knowledge-extraction chat API (falls back to [main] uri)
+uri = "https://api.openai.com"
+# Model for generating embeddings (falls back to `model` if not set)
+embed_model = "nomic-embed-text"
+# URI for the embeddings API (falls back to `uri` if not set)
+embed_uri = "http://localhost:11434"
+# Number of dimensions for embedding vectors (uses model default when unset)
+embed_dimensions = 1024
+# api_key inherits from [main] if not set here
+
 [projects.netlink_route]
 # Should match the output of `git remote get-url origin`
 git = "https://github.com/cathay4t/netlink-packet-route"

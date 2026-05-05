@@ -179,8 +179,9 @@ pub(crate) struct OpenAiClient {
     pub(crate) model: String,
     pub(crate) guideline: String,
     pub(crate) api_key: String,
-    /// Maximum number of tokens to generate per response.
-    pub(crate) max_tokens: i32,
+    /// Maximum number of tokens to generate per response; `None` lets the
+    /// server use its default.
+    pub(crate) max_tokens: Option<i32>,
     pub(crate) chat_user_message: OpenAiChatMessage,
     pub(crate) chat_history: Vec<OpenAiChatMessage>,
     pub(crate) tools: Vec<OpenAiToolPrototype>,
@@ -192,7 +193,7 @@ impl OpenAiClient {
         model: &str,
         guideline: &str,
         api_key: &str,
-        max_tokens: i32,
+        max_tokens: Option<i32>,
     ) -> Result<Self, TheyaError> {
         if std::env::var("THEYA_URI").is_ok() {
             return Err("The use of THEYA_URI is deprecated, please use \
@@ -291,7 +292,7 @@ impl OpenAiClient {
             model: self.model.clone(),
             messages,
             temperature: Some(1.0),
-            max_tokens: Some(self.max_tokens),
+            max_tokens: self.max_tokens,
             ..Default::default()
         };
         let mut reply = self.execute_chat_completion(&request).await?;
@@ -340,7 +341,7 @@ impl OpenAiClient {
             messages,
             tools: self.tools.clone(),
             temperature: Some(1.0),
-            max_tokens: Some(self.max_tokens),
+            max_tokens: self.max_tokens,
         };
 
         log::info!("Request AI to make summery on historical messages");
@@ -411,7 +412,7 @@ impl OpenAiClient {
             messages,
             tools: self.tools.clone(),
             temperature: Some(1.0),
-            max_tokens: Some(self.max_tokens),
+            max_tokens: self.max_tokens,
         };
 
         let reply = self.execute_chat_completion(&request).await?;
@@ -429,4 +430,57 @@ impl OpenAiClient {
 
         Ok(reply)
     }
+
+    /// Call the OpenAI-compatible `/v1/embeddings` endpoint and return one
+    /// embedding vector per input text, in the same order as `texts`.
+    pub(crate) async fn embed_texts(
+        &self,
+        texts: &[&str],
+        dimensions: Option<u32>,
+    ) -> Result<Vec<Vec<f32>>, TheyaError> {
+        let url = format!("{}/v1/embeddings", self.uri);
+        log::debug!(
+            "Requesting embeddings for {} text(s) via {url}",
+            texts.len()
+        );
+
+        let mut body =
+            serde_json::json!({ "model": self.model, "input": texts });
+        if let Some(dim) = dimensions {
+            body["dimensions"] = serde_json::json!(dim);
+        }
+
+        let response = self
+            .client
+            .post(&url)
+            .header("Authorization", self.auth_header())
+            .json(&body)
+            .send()
+            .await?;
+
+        if !response.status().is_success() {
+            let status = response.status();
+            let text = response.text().await.unwrap_or_default();
+            return Err(TheyaError::from(format!(
+                "Embeddings API returned {status}: {text}"
+            )));
+        }
+
+        let mut resp: EmbeddingsResponse = response.json().await?;
+        // Sort by index to guarantee the same order as the input slice.
+        resp.data.sort_by_key(|o| o.index);
+
+        Ok(resp.data.into_iter().map(|o| o.embedding).collect())
+    }
+}
+
+#[derive(Deserialize)]
+struct EmbeddingObject {
+    embedding: Vec<f32>,
+    index: usize,
+}
+
+#[derive(Deserialize)]
+struct EmbeddingsResponse {
+    data: Vec<EmbeddingObject>,
 }

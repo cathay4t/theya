@@ -105,3 +105,21 @@ impl From<String> for TheyaError {
         }
     }
 }
+
+impl From<lancedb::Error> for TheyaError {
+    fn from(e: lancedb::Error) -> Self {
+        Self {
+            kind: ErrorKind::IoError,
+            msg: format!("lancedb::Error: {e}"),
+        }
+    }
+}
+
+impl From<arrow_schema::ArrowError> for TheyaError {
+    fn from(e: arrow_schema::ArrowError) -> Self {
+        Self {
+            kind: ErrorKind::Bug,
+            msg: format!("ArrowError: {e}"),
+        }
+    }
+}

@@ -7,11 +7,36 @@ use serde::{Deserialize, Serialize};
 use super::code::default_code_guideline;
 use crate::TheyaError;
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct TheyaMemoryConfig {
+    /// Whether to index GitHub Copilot chat history
+    #[serde(default)]
+    pub(crate) copilot: bool,
+    /// URI for the knowledge-extraction chat API (falls back to [main] uri)
+    #[serde(default)]
+    pub(crate) uri: String,
+    #[serde(default)]
+    pub(crate) api_key: String,
+    /// Model for knowledge extraction (falls back to quick-chat model)
+    #[serde(default)]
+    pub(crate) model: String,
+    /// URI for the embeddings API (falls back to `uri`)
+    #[serde(default)]
+    pub(crate) embed_uri: String,
+    /// Model for generating embeddings (falls back to `model`)
+    #[serde(default)]
+    pub(crate) embed_model: String,
+    /// Number of dimensions for the embedding vectors (optional, uses model
+    /// default when unset)
+    #[serde(default)]
+    pub(crate) embed_dimensions: Option<u32>,
+}
+
 const DEFAULT_MODEL: &str = "gpt-4o";
 const CONFIG_PATH: &str = ".config/theya/config";
 const DEFAULT_URI: &str = "https://api.openai.com";
 const DEFAULT_QUICK_CHAT_MAX_TOKENS: i32 = 1024;
-const DEFAULT_MAX_TOKENS: i32 = 10 * 1024 * 1024;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -26,6 +51,8 @@ pub(crate) struct TheyaConfig {
     pub(crate) patch_review: TheyaPatchReviewConfig,
     #[serde(default)]
     pub(crate) code: TheyaCodeConfig,
+    #[serde(default)]
+    pub(crate) memory: TheyaMemoryConfig,
     #[serde(default)]
     pub(crate) projects: HashMap<String, TheyaProjectConfig>,
 }
@@ -82,6 +109,21 @@ impl TheyaConfig {
         if self.code.api_key.is_empty() {
             self.code.api_key = self.main.api_key.clone();
         }
+        if self.memory.uri.is_empty() {
+            self.memory.uri = self.main.uri.clone();
+        }
+        if self.memory.api_key.is_empty() {
+            self.memory.api_key = self.main.api_key.clone();
+        }
+        if self.memory.model.is_empty() {
+            self.memory.model = self.quick_chat.model.clone();
+        }
+        if self.memory.embed_uri.is_empty() {
+            self.memory.embed_uri = self.memory.uri.clone();
+        }
+        if self.memory.embed_model.is_empty() {
+            self.memory.embed_model = self.memory.model.clone();
+        }
     }
 }
 
@@ -113,10 +155,6 @@ fn default_model() -> String {
 
 fn default_quick_chat_max_tokens() -> i32 {
     DEFAULT_QUICK_CHAT_MAX_TOKENS
-}
-
-fn default_max_tokens() -> i32 {
-    DEFAULT_MAX_TOKENS
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -152,8 +190,8 @@ pub(crate) struct TheyaSlowChatConfig {
     pub(crate) uri: String,
     #[serde(default)]
     pub(crate) api_key: String,
-    #[serde(default = "default_max_tokens")]
-    pub(crate) max_tokens: i32,
+    #[serde(default)]
+    pub(crate) max_tokens: Option<i32>,
 }
 
 impl Default for TheyaSlowChatConfig {
@@ -162,7 +200,7 @@ impl Default for TheyaSlowChatConfig {
             model: default_model(),
             uri: default_uri(),
             api_key: String::new(),
-            max_tokens: DEFAULT_MAX_TOKENS,
+            max_tokens: None,
         }
     }
 }
@@ -176,8 +214,8 @@ pub(crate) struct TheyaPatchReviewConfig {
     pub(crate) uri: String,
     #[serde(default)]
     pub(crate) api_key: String,
-    #[serde(default = "default_max_tokens")]
-    pub(crate) max_tokens: i32,
+    #[serde(default)]
+    pub(crate) max_tokens: Option<i32>,
 }
 
 impl Default for TheyaPatchReviewConfig {
@@ -186,7 +224,7 @@ impl Default for TheyaPatchReviewConfig {
             model: default_model(),
             uri: default_uri(),
             api_key: String::new(),
-            max_tokens: DEFAULT_MAX_TOKENS,
+            max_tokens: None,
         }
     }
 }
@@ -221,8 +259,8 @@ pub(crate) struct TheyaCodeConfig {
     pub(crate) api_key: String,
     #[serde(default = "default_code_guideline")]
     pub(crate) guideline: String,
-    #[serde(default = "default_max_tokens")]
-    pub(crate) max_tokens: i32,
+    #[serde(default)]
+    pub(crate) max_tokens: Option<i32>,
 }
 
 impl Default for TheyaCodeConfig {
@@ -232,7 +270,7 @@ impl Default for TheyaCodeConfig {
             model: default_model(),
             api_key: String::new(),
             guideline: default_code_guideline(),
-            max_tokens: DEFAULT_MAX_TOKENS,
+            max_tokens: None,
         }
     }
 }
@@ -283,13 +321,13 @@ integ_test = "sudo tests/run-tests.sh"
         assert_eq!(config.quick_chat.max_tokens, 512);
 
         assert_eq!(config.slow_chat.model, "gpt-4o");
-        assert_eq!(config.slow_chat.max_tokens, DEFAULT_MAX_TOKENS);
+        assert_eq!(config.slow_chat.max_tokens, None);
 
         assert_eq!(config.patch_review.model, "gpt-4o");
-        assert_eq!(config.patch_review.max_tokens, 8192);
+        assert_eq!(config.patch_review.max_tokens, Some(8192));
 
         assert_eq!(config.code.model, "gpt-4o");
-        assert_eq!(config.code.max_tokens, DEFAULT_MAX_TOKENS);
+        assert_eq!(config.code.max_tokens, None);
         assert_eq!(config.code.guideline, "Test multiple lines\nguideline\n");
 
         assert_eq!(config.projects.len(), 1);

@@ -78,7 +78,7 @@ impl CommandChat {
             if is_slow {
                 config.slow_chat.max_tokens
             } else {
-                config.quick_chat.max_tokens
+                Some(config.quick_chat.max_tokens)
             },
         )
         .await?;
